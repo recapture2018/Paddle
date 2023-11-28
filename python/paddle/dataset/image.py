@@ -68,15 +68,14 @@ __all__ = []
 
 
 def _check_cv2():
-    if cv2 is None:
-        import sys
-        sys.stderr.write(
-            '''Warning with paddle image module: opencv-python should be imported,
-         or paddle image module could NOT work; please install opencv-python first.'''
-        )
-        return False
-    else:
+    if cv2 is not None:
         return True
+    import sys
+    sys.stderr.write(
+        '''Warning with paddle image module: opencv-python should be imported,
+         or paddle image module could NOT work; please install opencv-python first.'''
+    )
+    return False
 
 
 def batch_images_from_tar(data_file,
@@ -98,9 +97,9 @@ def batch_images_from_tar(data_file,
     :return: path of list file containing paths of batch file
     :rtype: string
     """
-    batch_dir = data_file + "_batch"
-    out_path = "%s/%s_%s" % (batch_dir, dataset_name, os.getpid())
-    meta_file = "%s/%s_%s.txt" % (batch_dir, dataset_name, os.getpid())
+    batch_dir = f"{data_file}_batch"
+    out_path = f"{batch_dir}/{dataset_name}_{os.getpid()}"
+    meta_file = f"{batch_dir}/{dataset_name}_{os.getpid()}.txt"
 
     if os.path.exists(out_path):
         return meta_file
@@ -117,9 +116,7 @@ def batch_images_from_tar(data_file,
             data.append(tf.extractfile(mem).read())
             labels.append(img2label[mem.name])
             if len(data) == num_per_batch:
-                output = {}
-                output['label'] = labels
-                output['data'] = data
+                output = {'label': labels, 'data': data}
                 pickle.dump(
                     output,
                     open('%s/batch_%d' % (out_path, file_id), 'wb'),
@@ -128,15 +125,13 @@ def batch_images_from_tar(data_file,
                 data = []
                 labels = []
     if len(data) > 0:
-        output = {}
-        output['label'] = labels
-        output['data'] = data
+        output = {'label': labels, 'data': data}
         pickle.dump(
             output, open('%s/batch_%d' % (out_path, file_id), 'wb'), protocol=2)
 
     with open(meta_file, 'a') as meta:
         for file in os.listdir(out_path):
-            meta.write(os.path.abspath("%s/%s" % (out_path, file)) + "\n")
+            meta.write(os.path.abspath(f"{out_path}/{file}") + "\n")
     return meta_file
 
 
@@ -162,8 +157,7 @@ def load_image_bytes(bytes, is_color=True):
 
     flag = 1 if is_color else 0
     file_bytes = np.asarray(bytearray(bytes), dtype=np.uint8)
-    img = cv2.imdecode(file_bytes, flag)
-    return img
+    return cv2.imdecode(file_bytes, flag)
 
 
 def load_image(file, is_color=True):
@@ -192,8 +186,7 @@ def load_image(file, is_color=True):
     # Here, use constant 1 and 0
     # 1: COLOR, 0: GRAYSCALE
     flag = 1 if is_color else 0
-    im = cv2.imread(file, flag)
-    return im
+    return cv2.imread(file, flag)
 
 
 def resize_short(im, size):
@@ -320,10 +313,7 @@ def left_right_flip(im, is_color=True):
     :param is_color: whether input image is color or not
     :type is_color: bool
     """
-    if len(im.shape) == 3 and is_color:
-        return im[:, ::-1, :]
-    else:
-        return im[:, ::-1]
+    return im[:, ::-1, :] if len(im.shape) == 3 and is_color else im[:, ::-1]
 
 
 def simple_transform(im,

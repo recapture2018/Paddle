@@ -52,10 +52,7 @@ class DistributedReshapeImpl0(DistributedOperatorImpl):
         x_dims_mapping = op_dist_attr.get_input_dims_mapping(x_name)
         out_dims_mapping = op_dist_attr.get_output_dims_mapping(out_name)
 
-        if len(x_dims_mapping) != len(out_dims_mapping) - 1:
-            return False
-
-        return True
+        return len(x_dims_mapping) == len(out_dims_mapping) - 1
 
     def is_output_compatible(self, dist_op):
         op_desc = dist_op.serial_op.desc
@@ -68,14 +65,11 @@ class DistributedReshapeImpl0(DistributedOperatorImpl):
         if len(x_dims_mapping) != len(out_dims_mapping) - 1:
             return False
 
-        if is_dim_shard(out_dims_mapping[-1]):
-            return False
-
-        return True
+        return not is_dim_shard(out_dims_mapping[-1])
 
     def is_auto_compatible(self, dist_op):
         if (not self.is_input_compatible(dist_op)) or \
-            (not self.is_output_compatible(dist_op)):
+                (not self.is_output_compatible(dist_op)):
             return False
 
         op_desc = dist_op.serial_op.desc
@@ -88,17 +82,16 @@ class DistributedReshapeImpl0(DistributedOperatorImpl):
         x_dims_mapping = op_dist_attr.get_input_dims_mapping(x_name)
         out_dims_mapping = op_dist_attr.get_output_dims_mapping(out_name)
 
-        for idx, dim_mapping in enumerate(out_dims_mapping[:-1]):
-            if x_dims_mapping[idx] != dim_mapping:
-                return False
-
-        if x_shape_dims_mapping[0] != -1:
-            return False
-
-        if x_shape_dims_mapping[1:] != x_dims_mapping[:]:
-            return False
-
-        return True
+        return next(
+            (
+                False
+                for idx, dim_mapping in enumerate(out_dims_mapping[:-1])
+                if x_dims_mapping[idx] != dim_mapping
+            ),
+            False
+            if x_shape_dims_mapping[0] != -1
+            else x_shape_dims_mapping[1:] == x_dims_mapping[:],
+        )
 
     def update_dims_mapping(self, dist_op):
         changed = False
@@ -134,35 +127,28 @@ class DistributedReshapeImpl0(DistributedOperatorImpl):
         src_op = dist_op_context.get_cur_src_op()
         rank_id = dist_op_context.get_rank_id()
         op_dist_attr = ctx.get_op_dist_attr_for_program(src_op)
-        assert op_dist_attr is not None, "backward op [{}] don't have dist attribute !".format(
-            str(src_op))
+        assert (
+            op_dist_attr is not None
+        ), f"backward op [{str(src_op)}] don't have dist attribute !"
 
         # check validation of inputs / outputs
         for input_name in src_op.desc.input_names():
-            assert input_name in kwargs, "input [{}] is not given".format(
-                input_name)
+            assert input_name in kwargs, f"input [{input_name}] is not given"
             assert len(kwargs[input_name]) == len(
                 src_op.desc.input(input_name)
-            ), "number of tensor for input [{}] is not match".format(input_name)
+            ), f"number of tensor for input [{input_name}] is not match"
         for output_name in src_op.desc.output_names():
-            assert output_name in kwargs, "input [{}] is not given".format(
-                output_name)
+            assert output_name in kwargs, f"input [{output_name}] is not given"
             assert len(kwargs[output_name]) == len(
                 src_op.desc.output(output_name)
-            ), "number of tensor for input [{}] is not match".format(
-                output_name)
+            ), f"number of tensor for input [{output_name}] is not match"
 
         X_var = main_block.var(kwargs['X'][0])
         Out_var = main_block.var(kwargs['Out'][0])
         XShape_var = main_block.var(kwargs['XShape'][0])
         shape_list = src_op.desc.attr("shape")
-        ShapeTensor_var_list = []
-        for name in kwargs['ShapeTensor']:
-            ShapeTensor_var_list.append(name)
-        Shape_var_list = []
-        for name in kwargs['Shape']:
-            Shape_var_list.append(name)
-
+        ShapeTensor_var_list = list(kwargs['ShapeTensor'])
+        Shape_var_list = list(kwargs['Shape'])
         # got dist attribute info
         dim_mapping = op_dist_attr.get_output_dims_mapping(Out_var.name)
         process_mesh_shape = op_dist_attr.process_mesh.topology
@@ -209,10 +195,7 @@ class DistributedReshapeImpl1(DistributedOperatorImpl):
         if len(x_dims_mapping) != len(out_dims_mapping) + 1:
             return False
 
-        if is_dim_shard(x_dims_mapping[-1]):
-            return False
-
-        return True
+        return not is_dim_shard(x_dims_mapping[-1])
 
     def is_output_compatible(self, dist_op):
         op_desc = dist_op.serial_op.desc
@@ -222,14 +205,11 @@ class DistributedReshapeImpl1(DistributedOperatorImpl):
         x_dims_mapping = op_dist_attr.get_input_dims_mapping(x_name)
         out_dims_mapping = op_dist_attr.get_output_dims_mapping(out_name)
 
-        if len(x_dims_mapping) != len(out_dims_mapping) + 1:
-            return False
-
-        return True
+        return len(x_dims_mapping) == len(out_dims_mapping) + 1
 
     def is_auto_compatible(self, dist_op):
         if (not self.is_input_compatible(dist_op)) or \
-            (not self.is_output_compatible(dist_op)):
+                (not self.is_output_compatible(dist_op)):
             return False
 
         op_desc = dist_op.serial_op.desc
@@ -245,17 +225,16 @@ class DistributedReshapeImpl1(DistributedOperatorImpl):
         if is_dim_shard(x_dims_mapping[-1]):
             return False
 
-        for idx, item in enumerate(x_dims_mapping[:-1]):
-            if out_dims_mapping[idx] != item:
-                return False
-
-        if x_shape_dims_mapping[0] != -1:
-            return False
-
-        if x_shape_dims_mapping[1:] != x_dims_mapping[:]:
-            return False
-
-        return True
+        return next(
+            (
+                False
+                for idx, item in enumerate(x_dims_mapping[:-1])
+                if out_dims_mapping[idx] != item
+            ),
+            False
+            if x_shape_dims_mapping[0] != -1
+            else x_shape_dims_mapping[1:] == x_dims_mapping[:],
+        )
 
     def update_dims_mapping(self, dist_op):
         changed = False
@@ -291,35 +270,28 @@ class DistributedReshapeImpl1(DistributedOperatorImpl):
         src_op = dist_op_context.get_cur_src_op()
         rank_id = dist_op_context.get_rank_id()
         op_dist_attr = ctx.get_op_dist_attr_for_program(src_op)
-        assert op_dist_attr is not None, "backward op [{}] don't have dist attribute !".format(
-            str(src_op))
+        assert (
+            op_dist_attr is not None
+        ), f"backward op [{str(src_op)}] don't have dist attribute !"
 
         # check validation of inputs / outputs
         for input_name in src_op.desc.input_names():
-            assert input_name in kwargs, "input [{}] is not given".format(
-                input_name)
+            assert input_name in kwargs, f"input [{input_name}] is not given"
             assert len(kwargs[input_name]) == len(
                 src_op.desc.input(input_name)
-            ), "number of tensor for input [{}] is not match".format(input_name)
+            ), f"number of tensor for input [{input_name}] is not match"
         for output_name in src_op.desc.output_names():
-            assert output_name in kwargs, "input [{}] is not given".format(
-                output_name)
+            assert output_name in kwargs, f"input [{output_name}] is not given"
             assert len(kwargs[output_name]) == len(
                 src_op.desc.output(output_name)
-            ), "number of tensor for input [{}] is not match".format(
-                output_name)
+            ), f"number of tensor for input [{output_name}] is not match"
 
         X_var = main_block.var(kwargs['X'][0])
         Out_var = main_block.var(kwargs['Out'][0])
         XShape_var = main_block.var(kwargs['XShape'][0])
         shape_list = src_op.desc.attr("shape")
-        ShapeTensor_var_list = []
-        for name in kwargs['ShapeTensor']:
-            ShapeTensor_var_list.append(name)
-        Shape_var_list = []
-        for name in kwargs['Shape']:
-            Shape_var_list.append(name)
-
+        ShapeTensor_var_list = list(kwargs['ShapeTensor'])
+        Shape_var_list = list(kwargs['Shape'])
         # got dist attribute info
         dim_mapping = op_dist_attr.get_output_dims_mapping(Out_var.name)
         process_mesh_shape = op_dist_attr.process_mesh.topology

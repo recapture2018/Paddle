@@ -48,7 +48,7 @@ class DistributedTranspose2Impl(DistributedOperatorImpl):
 
     def is_auto_compatible(self, dist_op):
         if (not self.is_input_compatible(dist_op)) or \
-            (not self.is_output_compatible(dist_op)):
+                (not self.is_output_compatible(dist_op)):
             return False
 
         op_desc = dist_op.serial_op.desc
@@ -61,7 +61,7 @@ class DistributedTranspose2Impl(DistributedOperatorImpl):
             x_shape_name)
         x_dims_mapping = op_dist_attr.get_input_dims_mapping(x_name)
         out_dims_mapping = op_dist_attr.get_output_dims_mapping(out_name)
-        new_dims_mapping = [-1 for i in range(len(x_dims_mapping))]
+        new_dims_mapping = [-1 for _ in range(len(x_dims_mapping))]
         for i in range(len(x_dims_mapping)):
             new_dims_mapping[i] = x_dims_mapping[perm[i]]
 
@@ -74,10 +74,7 @@ class DistributedTranspose2Impl(DistributedOperatorImpl):
         if x_shape_dims_mapping[0] != -1:
             return False
 
-        if x_shape_dims_mapping[1:] != x_dims_mapping[:]:
-            return False
-
-        return True
+        return x_shape_dims_mapping[1:] == x_dims_mapping[:]
 
     def update_dims_mapping(self, dist_op):
         changed = False
@@ -94,7 +91,7 @@ class DistributedTranspose2Impl(DistributedOperatorImpl):
 
         assert len(x_dims_mapping) == len(perm)
 
-        new_dims_mapping = [-1 for i in range(len(x_dims_mapping))]
+        new_dims_mapping = [-1 for _ in range(len(x_dims_mapping))]
         for i in range(len(x_dims_mapping)):
             new_dims_mapping[i] = x_dims_mapping[perm[i]]
 

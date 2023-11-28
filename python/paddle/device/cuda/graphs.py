@@ -51,7 +51,8 @@ class CUDAGraph:
             dirname = dirname.name
         os.makedirs(name=dirname, exist_ok=True)
         assert os.path.isdir(
-            dirname), "The dirname {} should be a directory".format(dirname)
+            dirname
+        ), f"The dirname {dirname} should be a directory"
         if flags is None:
             flags = 2047  # only all information. It can be any integer inside [1, 2048)  
         self._graph.print_to_dot_files(dirname, flags)

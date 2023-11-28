@@ -92,8 +92,9 @@ def gloo_init_parallel_env(rank_id, rank_num, server_endpoint):
                 test_gloo_init_with_multiprocess(2)
     """
 
-    assert (rank_num < 2) is False, \
-        "rank_num should greater than or equal to 2 for parallel environment initialzation."
+    assert (
+        rank_num >= 2
+    ), "rank_num should greater than or equal to 2 for parallel environment initialzation."
 
     # init gloo context
     manager = Manager()

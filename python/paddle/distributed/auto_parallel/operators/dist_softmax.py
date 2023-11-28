@@ -49,10 +49,7 @@ class DistributedSoftmaxImpl(DistributedOperatorImpl):
         # if axis != -1 and axis != len(x_dims_mapping) - 1:
         #     return False
 
-        if is_dim_shard(x_dims_mapping[axis]):
-            return False
-
-        return True
+        return not is_dim_shard(x_dims_mapping[axis])
 
     def is_output_compatible(self, dist_op):
         op_desc = dist_op.serial_op.desc
@@ -64,14 +61,11 @@ class DistributedSoftmaxImpl(DistributedOperatorImpl):
         # if axis != -1 and axis != len(out_dims_mapping) - 1:
         #     return False
 
-        if is_dim_shard(out_dims_mapping[axis]):
-            return False
-
-        return True
+        return not is_dim_shard(out_dims_mapping[axis])
 
     def is_auto_compatible(self, dist_op):
         if (not self.is_input_compatible(dist_op)) or \
-            (not self.is_output_compatible(dist_op)):
+                (not self.is_output_compatible(dist_op)):
             return False
 
         op_desc = dist_op.serial_op.desc
@@ -84,10 +78,7 @@ class DistributedSoftmaxImpl(DistributedOperatorImpl):
         # if axis != -1 and axis != len(x_dims_mapping) - 1:
         #     return False
 
-        if x_dims_mapping != out_dims_mapping:
-            return False
-
-        return True
+        return x_dims_mapping == out_dims_mapping
 
     def update_dims_mapping(self, dist_op):
         changed = False

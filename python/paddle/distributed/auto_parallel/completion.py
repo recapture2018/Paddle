@@ -42,17 +42,12 @@ def compute_compatible_process_mesh(process_mesh_list):
         if pm1 == pm2:
             return True, pm1
         if pm1.processes == pm2.processes:
-            if len(pm1.topology) >= len(pm2.topology):
-                return True, pm1
-            else:
-                return True, pm2
+            return (True, pm1) if len(pm1.topology) >= len(pm2.topology) else (True, pm2)
         process_set1 = set(pm1.processes)
         process_set2 = set(pm2.processes)
         if process_set1.issubset(process_set2):
             return True, pm2
-        if process_set2.issubset(process_set1):
-            return True, pm1
-        return False, None
+        return (True, pm1) if process_set2.issubset(process_set1) else (False, None)
 
     compatible_result = None
     for process_mesh in process_mesh_list:
@@ -73,9 +68,7 @@ def compute_compatible_dim_mapping(dim_mapping_list):
             return True, dm2
         if dm2 == -1:
             return True, dm1
-        if dm1 == dm2:
-            return True, dm1
-        return False, None
+        return (True, dm1) if dm1 == dm2 else (False, None)
 
     compatible_result = -1
     for mapping in dim_mapping_list:
@@ -127,13 +120,15 @@ class Completer:
         if tensor_dist_attr.is_annotated("dims_mapping"):
             return False
         tensor_dims_mapping = tensor_dist_attr.dims_mapping
+        dims_mapping_list = []
         if fwd:
-            dims_mapping_list = []
             for pred_op_node in tensor_node.inputs:
                 if pred_op_node.op() is not None:
-                    if pred_op_node.op().type() == "create_py_reader" \
-                        or pred_op_node.op().type() == "create_double_buffer_reader" \
-                        or pred_op_node.op().type() == "read":
+                    if pred_op_node.op().type() in [
+                        "create_py_reader",
+                        "create_double_buffer_reader",
+                        "read",
+                    ]:
                         continue
                     op_dist_attr = self._dist_context.get_op_dist_attr_for_graph(
                         pred_op_node)
@@ -141,20 +136,14 @@ class Completer:
                         op_dims_mapping = op_dist_attr.get_output_dims_mapping(
                             tensor_desc.name())
                         dims_mapping_list.append(op_dims_mapping)
-            dims_mapping_list.append(tensor_dims_mapping)
-            compatible_dims_mapping = compute_compatible_dims_mapping(
-                dims_mapping_list)
-            if (compatible_dims_mapping is not None) and \
-                (compatible_dims_mapping != tensor_dims_mapping):
-                tensor_dist_attr.dims_mapping = compatible_dims_mapping
-                changed = True
         else:
-            dims_mapping_list = []
             for succ_op_node in tensor_node.outputs:
                 if succ_op_node.op() is not None:
-                    if succ_op_node.op().type() == "create_py_reader" \
-                        or succ_op_node.op().type() == "create_double_buffer_reader" \
-                        or succ_op_node.op().type() == "read":
+                    if succ_op_node.op().type() in [
+                        "create_py_reader",
+                        "create_double_buffer_reader",
+                        "read",
+                    ]:
                         continue
                     op_dist_attr = self._dist_context.get_op_dist_attr_for_graph(
                         succ_op_node)
@@ -162,13 +151,13 @@ class Completer:
                         op_dims_mapping = op_dist_attr.get_input_dims_mapping(
                             tensor_desc.name())
                         dims_mapping_list.append(op_dims_mapping)
-            dims_mapping_list.append(tensor_dims_mapping)
-            compatible_dims_mapping = compute_compatible_dims_mapping(
-                dims_mapping_list)
-            if (compatible_dims_mapping is not None) and \
+        dims_mapping_list.append(tensor_dims_mapping)
+        compatible_dims_mapping = compute_compatible_dims_mapping(
+            dims_mapping_list)
+        if (compatible_dims_mapping is not None) and \
                 (compatible_dims_mapping != tensor_dims_mapping):
-                tensor_dist_attr.dims_mapping = compatible_dims_mapping
-                changed = True
+            tensor_dist_attr.dims_mapping = compatible_dims_mapping
+            changed = True
         return changed
 
     def _update_op_node_dims_mapping(self, op_node, fwd=True):
@@ -177,9 +166,11 @@ class Completer:
             return False
         # Skip reader op
         op_desc = op_node.op()
-        if op_desc.type() == "create_py_reader" \
-            or op_desc.type() == "create_double_buffer_reader" \
-            or op_desc.type() == "read":
+        if op_desc.type() in [
+            "create_py_reader",
+            "create_double_buffer_reader",
+            "read",
+        ]:
             return False
         dist_op = self._dist_context.get_dist_op_for_graph(op_node)
         op_dist_attr = dist_op.dist_attr
@@ -201,23 +192,13 @@ class Completer:
                         compatible_dims_mapping = compute_compatible_dims_mapping(
                             [op_dims_mapping, tensor_dims_mapping])
                         if (compatible_dims_mapping is not None) and \
-                            (compatible_dims_mapping != op_dims_mapping):
+                                (compatible_dims_mapping != op_dims_mapping):
                             op_dist_attr.set_input_dims_mapping(
                                 tensor_desc.name(), compatible_dims_mapping)
                             changed = True
             # Find the most compatible implemenetations from the distributed operator
             op_dist_impl = find_best_compatible_distributed_operator_impl(
                 dist_op, fwd=True)
-            assert op_dist_impl is not None, "Cannot find the dist op implementation."
-            dim_changed = op_dist_impl.update_dims_mapping(dist_op)
-            if dim_changed:
-                changed = True
-            if op_dist_impl.is_auto_compatible(dist_op):
-                if op_dist_impl.type == "elementwise":
-                    op_dist_attr.impl_type = "default"
-                else:
-                    op_dist_attr.impl_type = op_dist_impl.type
-                op_dist_attr.impl_idx = op_dist_impl.idx
         else:
             for tensor_node in op_node.outputs:
                 if tensor_node.var() is not None:
@@ -236,23 +217,23 @@ class Completer:
                         compatible_dims_mapping = compute_compatible_dims_mapping(
                             [op_dims_mapping, tensor_dims_mapping])
                         if (compatible_dims_mapping is not None) and \
-                            (compatible_dims_mapping != op_dims_mapping):
+                                (compatible_dims_mapping != op_dims_mapping):
                             op_dist_attr.set_output_dims_mapping(
                                 tensor_desc.name(), compatible_dims_mapping)
                             changed = True
             # Find the most compatible implemenetations from the distributed operator
             op_dist_impl = find_best_compatible_distributed_operator_impl(
                 dist_op, fwd=False)
-            assert op_dist_impl is not None, "Cannot find the dist op implementation."
-            dim_changed = op_dist_impl.update_dims_mapping(dist_op)
-            if dim_changed:
-                changed = True
-            if op_dist_impl.is_auto_compatible(dist_op):
-                if op_dist_impl.type == "elementwise":
-                    op_dist_attr.impl_type = "default"
-                else:
-                    op_dist_attr.impl_type = op_dist_impl.type
-                op_dist_attr.impl_idx = op_dist_impl.idx
+        assert op_dist_impl is not None, "Cannot find the dist op implementation."
+        dim_changed = op_dist_impl.update_dims_mapping(dist_op)
+        if dim_changed:
+            changed = True
+        if op_dist_impl.is_auto_compatible(dist_op):
+            if op_dist_impl.type == "elementwise":
+                op_dist_attr.impl_type = "default"
+            else:
+                op_dist_attr.impl_type = op_dist_impl.type
+            op_dist_attr.impl_idx = op_dist_impl.idx
         return changed
 
     def _update_process_mesh(self):
@@ -268,7 +249,7 @@ class Completer:
             total_changed = False
             for is_fwd in [True, False]:
                 all_nodes = self._dist_context.serial_ordered_nodes \
-                    if is_fwd else reversed(self._dist_context.serial_ordered_nodes)
+                        if is_fwd else reversed(self._dist_context.serial_ordered_nodes)
                 reach_fix_point = False
                 while not reach_fix_point:
                     changed = False
@@ -286,7 +267,7 @@ class Completer:
                         compatible_process_mesh = compute_compatible_process_mesh(
                             [cur_process_mesh, nearest_process_mesh])
                         if compatible_process_mesh is not None \
-                            and cur_process_mesh != compatible_process_mesh:
+                                and cur_process_mesh != compatible_process_mesh:
                             cur_node_dist_attr.process_mesh = compatible_process_mesh
                             changed = True
                     if changed:
@@ -294,10 +275,7 @@ class Completer:
                         total_changed = True
                     else:
                         reach_fix_point = True
-            if total_changed:
-                total_reach_fix_point = False
-            else:
-                total_reach_fix_point = True
+            total_reach_fix_point = not total_changed
 
     def _update_dims_mapping(self):
         # Complete dims_mapping for each node
@@ -306,7 +284,7 @@ class Completer:
             changed = False
             for is_fwd in [True, False]:
                 all_nodes = self._dist_context.serial_ordered_nodes \
-                    if is_fwd else reversed(self._dist_context.serial_ordered_nodes)
+                        if is_fwd else reversed(self._dist_context.serial_ordered_nodes)
                 for node in all_nodes:
                     if node.is_var() and node.var() is not None:
                         tensor_changed = self._update_tensor_node_dims_mapping(
@@ -318,10 +296,7 @@ class Completer:
                             node, fwd=is_fwd)
                         if op_changed:
                             changed = True
-            if changed:
-                reach_fix_point = False
-            else:
-                reach_fix_point = True
+            reach_fix_point = not changed
 
     def complete_forward_annotation(self, serial_main_program):
         """ Complete annotation for the partial annotated serial_main_program.
@@ -364,9 +339,7 @@ class Completer:
         """Complete the annotation of vars and ops in the backward phase for parallel program."""
 
         def _is_grad_var_name(name):
-            if "@GRAD" in name:
-                return True
-            return False
+            return "@GRAD" in name
 
         def _get_forward_varname_from_grad_varname(grad_var_name):
             assert _is_grad_var_name(
@@ -474,7 +447,7 @@ class Completer:
                                                              ref_dims_mapping)
 
                 for output_name in grad_op.desc.output_names():
-                    assert len(grad_op.desc.output(output_name)) in [0, 1]
+                    assert len(grad_op.desc.output(output_name)) in {0, 1}
                     if _is_grad_var_name(output_name):
                         input_name = _get_forward_varname_from_grad_varname(
                             output_name)
@@ -506,7 +479,6 @@ class Completer:
                 self._dist_context.set_op_dist_attr_for_program(
                     grad_op, grad_op_dist_attr)
 
-            # only sum op for merge mutiple version grad has no a corresponding mapping in grad_op_id_to_op_id
             else:
                 assert grad_op.type == "sum", "got unexpect op [{}]".format(
                     str(grad_op.type))
@@ -548,14 +520,14 @@ class Completer:
         vars = serial_main_program.global_block().vars
         learning_rate_completed = False
 
-        for idx in range(len(ops)):
+        for op_ in ops:
 
             # complete the annotation of the optimizer op.
             # TODO to add attribute for moment var
-            op = ops[idx]
+            op = op_
             if int(op.attr('op_role')) == int(OpRole.Optimize):
 
-                if "Grad" in op.input_names and "Param" in ops[idx].input_names:
+                if "Grad" in op.input_names and "Param" in op_.input_names:
                     assert len(op.input(
                         "Param")) == 1, "Only support one-to-one now."
                     assert len(op.input(
@@ -626,4 +598,3 @@ class Completer:
 
                     self._dist_context.set_op_dist_attr_for_program(
                         op, op_dist_attr)
-                    continue

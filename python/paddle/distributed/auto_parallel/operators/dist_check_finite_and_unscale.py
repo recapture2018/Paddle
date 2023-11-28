@@ -80,36 +80,35 @@ class DistributedCheckFiniteAndUnscaleImpl(DistributedOperatorImpl):
         backward_op = dist_op_context.get_cur_src_op()
         rank_id = dist_op_context.get_rank_id()
         dist_attr = ctx.get_op_dist_attr_for_program(backward_op)
-        assert dist_attr is not None, "backward op [{}] don't have dist attribute !".format(
-            str(backward_op))
+        assert (
+            dist_attr is not None
+        ), f"backward op [{str(backward_op)}] don't have dist attribute !"
 
         assert rank_id in dist_attr.process_mesh.processes
 
-        assert 'X' in kwargs, "input [{}] is not given".format('X')
-        assert 'Scale' in kwargs, "input [{}] is not given".format('Scale')
-        assert 'Out' in kwargs, "input [{}] is not given".format('Out')
-        assert 'FoundInfinite' in kwargs, "output [{}] is not given".format(
-            'FoundInfinite')
+        assert 'X' in kwargs, 'input [X] is not given'
+        assert 'Scale' in kwargs, 'input [Scale] is not given'
+        assert 'Out' in kwargs, 'input [Out] is not given'
+        assert 'FoundInfinite' in kwargs, 'output [FoundInfinite] is not given'
 
-        assert len(
-            kwargs['Scale']
-        ) == 1, "check_finite_and_unscale input Scale take 1 variable but got {}".format(
-            kwargs['Scale'])
-        assert len(
-            kwargs['FoundInfinite']
-        ) == 1, "check_finite_and_unscale input FoundInfinite take 1 variable but got {}".format(
-            kwargs['FoundInfinite'])
+        assert (
+            len(kwargs['Scale']) == 1
+        ), f"check_finite_and_unscale input Scale take 1 variable but got {kwargs['Scale']}"
+        assert (
+            len(kwargs['FoundInfinite']) == 1
+        ), f"check_finite_and_unscale input FoundInfinite take 1 variable but got {kwargs['FoundInfinite']}"
         assert len(kwargs['X']) == len(
             kwargs['Out']
-        ), "check_finite_and_unscale got [{}] X and [{}] Out, which are supposed to be equal".format(
-            len(kwargs['X']), len(kwargs['Out']))
+        ), f"check_finite_and_unscale got [{len(kwargs['X'])}] X and [{len(kwargs['Out'])}] Out, which are supposed to be equal"
 
-        filter_vars = []
-        for varname in kwargs['X']:
-            if rank_id in ctx.get_tensor_dist_attr_for_program(
-                    main_block.var(varname)).process_mesh.processes:
-                filter_vars.append(varname)
-
+        filter_vars = [
+            varname
+            for varname in kwargs['X']
+            if rank_id
+            in ctx.get_tensor_dist_attr_for_program(
+                main_block.var(varname)
+            ).process_mesh.processes
+        ]
         # replicate op in dist program
         dist_op_desc = main_block.desc.append_op()
         dist_op_desc.copy_from(backward_op.desc)
@@ -123,9 +122,10 @@ class DistributedCheckFiniteAndUnscaleImpl(DistributedOperatorImpl):
 
         inf_var = main_block.var(kwargs['FoundInfinite'][0])
         inf_var_int32 = main_block.create_var(
-            name=inf_var.name + "@cast_int32",
+            name=f"{inf_var.name}@cast_int32",
             shape=inf_var.shape,
-            dtype=core.VarDesc.VarType.INT32)
+            dtype=core.VarDesc.VarType.INT32,
+        )
         set_var_dist_attr(
             ctx, inf_var_int32,
             ctx.get_tensor_dist_attr_for_program(inf_var).dims_mapping,

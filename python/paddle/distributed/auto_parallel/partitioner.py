@@ -53,8 +53,8 @@ class Partitioner(object):
         """
         if not isinstance(dist_context, DistributedContext):
             raise TypeError(
-                "dist_context be paddle.fluid.DistributedContext, got %s here" %
-                type(dist_context))
+                f"dist_context be paddle.fluid.DistributedContext, got {type(dist_context)} here"
+            )
 
         self._dist_context = dist_context
         self._rank_id = rank_id
@@ -65,8 +65,8 @@ class Partitioner(object):
                   params_grads):
         if not isinstance(serial_main_program, (Program)):
             raise TypeError(
-                "main_program be paddle.fluid.framework.program, got %s here" %
-                type(serial_main_program))
+                f"main_program be paddle.fluid.framework.program, got {type(serial_main_program)} here"
+            )
 
         # check if shard annotated serial program valid
         if not self._is_valid_annotated_program(serial_main_program):
@@ -79,7 +79,7 @@ class Partitioner(object):
         dist_op_context.set_rank_id(self._rank_id)
 
         # partition startup program
-        if serial_startup_program == None:
+        if serial_startup_program is None:
             partitioned_startup_prog = None
         else:
             partitioned_startup_prog = self.partition_startup_program(
@@ -97,8 +97,8 @@ class Partitioner(object):
 
         if not isinstance(serial_startup_program, (Program)):
             raise TypeError(
-                "dist_context be paddle.fluid.framework.program, got %s here" %
-                type(serial_startup_program))
+                f"dist_context be paddle.fluid.framework.program, got {type(serial_startup_program)} here"
+            )
 
         partitioned_startup_prog = fluid.Program()
         ref_block = serial_main_program.global_block()
@@ -119,13 +119,12 @@ class Partitioner(object):
         for op in serial_startup_program.global_block().ops:
             # TODO if var not belong to this rank, should be filtered
             output_vars = op.desc.output_arg_names()
-            assert len(
-                output_vars
-            ) == 1, "initializer should output only ONE variable, but got [{}]".format(
-                str(op.desc))
-            assert temp_varname_map[output_vars[
-                0]] in var2shape, "try to initialize [{}] which is not a persistable var".format(
-                    output_vars[0])
+            assert (
+                len(output_vars) == 1
+            ), f"initializer should output only ONE variable, but got [{str(op.desc)}]"
+            assert (
+                temp_varname_map[output_vars[0]] in var2shape
+            ), f"try to initialize [{output_vars[0]}] which is not a persistable var"
             new_op_desc = target_block.desc.append_op()
             new_op_desc.copy_from(op.desc)
             new_op_desc._rename_output(output_vars[0],
@@ -166,12 +165,11 @@ class Partitioner(object):
 
         # init mapping
         first_backward_op_idx = -1
-        forward_op_id2forward_op = {}
-        for idx in range(len(serial_ops)):
-            if is_forward_op(serial_ops[idx]):
-                forward_op_id2forward_op[serial_ops[idx].desc.id(
-                )] = serial_ops[idx]
-
+        forward_op_id2forward_op = {
+            serial_ops[idx].desc.id(): serial_ops[idx]
+            for idx in range(len(serial_ops))
+            if is_forward_op(serial_ops[idx])
+        }
         # partiiton
         for op in serial_ops:
 
@@ -215,8 +213,8 @@ class Partitioner(object):
                                                **koutputs)
             else:
                 raise NotImplementedError(
-                    "partitioner only support forward op and backward op, but got {}".
-                    format(str(op)))
+                    f"partitioner only support forward op and backward op, but got {str(op)}"
+                )
 
         partitioned_params_and_grads = []
         for p, g in params_and_grads:
@@ -263,16 +261,15 @@ def _get_dist_shape(var, dist_attr):
     mesh = dist_attr.process_mesh.topology
     assert len(var_shape) == len(
         mapping
-    ), "variable shape [{}] and dim_mapping [{}] is NOT match !".format(
-        var_shape, mapping)
+    ), f"variable shape [{var_shape}] and dim_mapping [{mapping}] is NOT match !"
     new_shape = []
     for idx in range(len(var_shape)):
         if var_shape[idx] == -1 or mapping[idx] == -1:
             new_shape.append(var_shape[idx])
         else:
-            assert var_shape[idx] % mesh[mapping[
-                idx]] == 0, "un-event partition: var_shape[idx]=[{}], mesh[{}]".format(
-                    var_shape[idx], mesh[mapping[idx]])
+            assert (
+                var_shape[idx] % mesh[mapping[idx]] == 0
+            ), f"un-event partition: var_shape[idx]=[{var_shape[idx]}], mesh[{mesh[mapping[idx]]}]"
             new_shape.append(var_shape[idx] // mesh[mapping[idx]])
 
     return new_shape
@@ -282,13 +279,13 @@ def _partition_parameter(dist_context, src_var, dst_block, dst_varname,
                          dst_shape):
     # NOTE hack to copied Parameter
     # not initialized parameter, need to initialize it
-    copied_kwargs = {}
-    copied_kwargs['trainable'] = src_var.trainable
-    copied_kwargs['optimize_attr'] = src_var.optimize_attr
-    copied_kwargs['regularizer'] = src_var.regularizer
-    copied_kwargs['do_model_average'] = src_var.do_model_average
-    copied_kwargs['need_clip'] = src_var.need_clip
-
+    copied_kwargs = {
+        'trainable': src_var.trainable,
+        'optimize_attr': src_var.optimize_attr,
+        'regularizer': src_var.regularizer,
+        'do_model_average': src_var.do_model_average,
+        'need_clip': src_var.need_clip,
+    }
     param = Parameter(
         block=dst_block,
         type=src_var.type,
@@ -372,18 +369,14 @@ def _get_dist_op_backward_implement(backward_op, dist_context,
             forward_op)
         dist_op_impl_container = get_distributed_operator_impl_container(
             forward_op_dist_attr.impl_type)
-        dist_op_impl = dist_op_impl_container.get_impl(
-            forward_op_dist_attr.impl_idx)
-        return dist_op_impl
-
+        return dist_op_impl_container.get_impl(forward_op_dist_attr.impl_idx)
     # # NOTE trick for dist ops that only have backward implement
     if backward_op.type in BACKWARD_ONLY_DIST_OPS:
         op_dist_attr = dist_context.get_op_dist_attr_for_program(backward_op)
         assert op_dist_attr.impl_idx >= 0
-        dist_op_impl = get_distributed_operator_impl_container(
-            backward_op.type).get_impl(op_dist_attr.impl_idx)
-        return dist_op_impl
-
+        return get_distributed_operator_impl_container(
+            backward_op.type
+        ).get_impl(op_dist_attr.impl_idx)
     dist_op = get_distributed_operator_impl_container("default")
     return dist_op.get_impl(0)
 
@@ -392,5 +385,4 @@ def _get_dist_op_forward_implement(forward_op, dist_context):
     dist_attr = dist_context.get_op_dist_attr_for_program(forward_op)
     dist_op_impl_container = get_distributed_operator_impl_container(
         dist_attr.impl_type)
-    dist_op_impl = dist_op_impl_container.get_impl(dist_attr.impl_idx)
-    return dist_op_impl
+    return dist_op_impl_container.get_impl(dist_attr.impl_idx)

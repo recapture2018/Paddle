@@ -235,12 +235,12 @@ def _compute_concat_info(partition_index_x, partition_index_y):
             if item[1] == partition_index_y[idx][0] and item[
                     0] < partition_index_y[idx][1]:
                 concat_axis = idx
-                new_partition.append([item[0], partition_index_y[idx][1]])
+                new_partition.append([item[0], partition_index_y[concat_axis][1]])
             elif item[0] == partition_index_y[idx][1] and item[
                     1] > partition_index_y[idx][0]:
                 first_order = 1
                 concat_axis = idx
-                new_partition.append([partition_index_y[idx][0], item[1]])
+                new_partition.append([partition_index_y[concat_axis][0], item[1]])
         else:
             new_partition.append(item)
 
@@ -272,11 +272,10 @@ def _concat_partitions(partition_index_list, partition_index):
 
 def _is_overlapped(shape_x, shape_y):
     """Judge whether two partitions intersect on the specified dimension."""
-    overlapped = False
-    if (shape_y[0] <= shape_x[0] < shape_y[1]) or (
-            shape_x[0] <= shape_y[0] < shape_x[1]):
-        overlapped = True
-    return overlapped
+    return (
+        shape_y[0] <= shape_x[0] < shape_y[1]
+        or shape_x[0] <= shape_y[0] < shape_x[1]
+    )
 
 
 def _need_reshard(dist_tensor, dist_op, op_input=True):
@@ -364,7 +363,6 @@ def find_op_desc_seq(dist_tensor, dist_op):
                 set(source_process_group)):
         pass
 
-    # in the different process group, it will use send, recv, concat and slice op
     elif target_process_group != source_process_group:
         partition_process_mapping_list = []
         for source_process in source_process_group:
@@ -374,12 +372,9 @@ def find_op_desc_seq(dist_tensor, dist_op):
                 partition_process_mapping_list.append(
                     [source_partition_index, [source_process], [False]])
             else:
-                partition_list = list(
-                    [item[0] for item in partition_process_mapping_list])
-                process_list = list(
-                    [item[1] for item in partition_process_mapping_list])
-                has_used = list(
-                    [item[2] for item in partition_process_mapping_list])
+                partition_list = [item[0] for item in partition_process_mapping_list]
+                process_list = [item[1] for item in partition_process_mapping_list]
+                has_used = [item[2] for item in partition_process_mapping_list]
                 if partition_list.count(source_partition_index) == 1:
                     index = partition_list.index(source_partition_index)
                     process_list[index].append(source_process)
@@ -400,17 +395,23 @@ def find_op_desc_seq(dist_tensor, dist_op):
                     source_process, complete_shape, source_dims_mapping,
                     source_process_shape, source_process_group)
                 to_send_process = None
-                if all(_ for _ in list(map(_is_overlapped, source_partition_index, target_partition_index))) \
-                        and source_partition_index not in has_sent:
-                    idx = list([
+                if (
+                    all(
+                        list(
+                            map(
+                                _is_overlapped,
+                                source_partition_index,
+                                target_partition_index,
+                            )
+                        )
+                    )
+                    and source_partition_index not in has_sent
+                ):
+                    idx = [
                         item[0] for item in partition_process_mapping_list
-                    ]).index(source_partition_index)
-                    has_used = list(
-                        [item[2]
-                         for item in partition_process_mapping_list])[idx]
-                    process_list = list(
-                        [item[1]
-                         for item in partition_process_mapping_list])[idx]
+                    ].index(source_partition_index)
+                    has_used = [item[2] for item in partition_process_mapping_list][idx]
+                    process_list = [item[1] for item in partition_process_mapping_list][idx]
                     i = 0
                     while i < len(has_used):
                         if not has_used[i]:
@@ -457,7 +458,6 @@ def find_op_desc_seq(dist_tensor, dist_op):
             op_desc_seq[target_process].append(
                 SliceOpDesc(slice_starts, slice_ends, slices_axes))
 
-    # in the same process group, it will use allgahther and slice op
     else:
         partition_index_list = []
         all_partition_index_list = []
@@ -476,10 +476,10 @@ def find_op_desc_seq(dist_tensor, dist_op):
 
         for i in range(len(process_index[0][0])):
             group = []
-            for j in range(len(process_index)):
-                group.append(process_index[j][0][i])
+            for item_ in process_index:
+                group.append(item_[0][i])
                 if i == 0:
-                    all_partition_index_list.append(process_index[j][1])
+                    all_partition_index_list.append(item_[1])
             for process in group:
                 # append slice op desc
                 slice_starts = []
@@ -536,8 +536,7 @@ def _insert_recv_op(block, idx, tensor, src):
 def _insert_concat_op(block, idx, tensors, axis):
     """Insert concat op into block at the given block."""
     inputs = {'X': tensors}
-    attrs = {}
-    attrs['axis'] = axis
+    attrs = {'axis': axis}
     helper = LayerHelper('concat', **locals())
     with paddle.static.program_guard(block.program):
         out = helper.create_variable_for_type_inference(
@@ -550,7 +549,7 @@ def _insert_concat_op(block, idx, tensors, axis):
 def _insert_slice_op(block, idx, tensor, starts, ends, axes, new_var_name):
     """Insert slice op into block at the given block."""
     inputs = {'Input': tensor}
-    infer_flags = list(1 for i in range(len(axes)))
+    infer_flags = [1 for _ in range(len(axes))]
     attrs = {
         "axes": axes,
         "starts": starts,
@@ -576,7 +575,9 @@ def _insert_split_op(block, idx, tensor, num_or_sections):
     with paddle.static.program_guard(block.program):
         outs = [
             helper.create_variable_for_type_inference(
-                dtype=helper.input_dtype()) for i in range(num_or_sections)
+                dtype=helper.input_dtype()
+            )
+            for _ in range(num_or_sections)
         ]
     block._insert_op(
         idx, type="split", inputs=inputs, outputs={'Out': outs}, attrs=attrs)

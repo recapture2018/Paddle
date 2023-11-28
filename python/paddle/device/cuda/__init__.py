@@ -120,10 +120,11 @@ def device_count():
 
     '''
 
-    num_gpus = core.get_cuda_device_count() if hasattr(
-        core, 'get_cuda_device_count') else 0
-
-    return num_gpus
+    return (
+        core.get_cuda_device_count()
+        if hasattr(core, 'get_cuda_device_count')
+        else 0
+    )
 
 
 def empty_cache():
@@ -251,27 +252,24 @@ def get_device_properties(device=None):
             "CPU-only PaddlePaddle. Please reinstall PaddlePaddle with GPU support "
             "to call this API.")
 
-    if device is not None:
-        if isinstance(device, int):
-            device_id = device
-        elif isinstance(device, core.CUDAPlace):
-            device_id = device.get_device_id()
-        elif isinstance(device, str):
-            if device.startswith('gpu:'):
-                device_id = int(device[4:])
-            else:
-                raise ValueError(
-                    "The current string {} is not expected. Because paddle.device."
-                    "cuda.get_device_properties only support string which is like 'gpu:x'. "
-                    "Please input appropriate string again!".format(device))
-        else:
-            raise ValueError(
-                "The device type {} is not expected. Because paddle.device.cuda."
-                "get_device_properties only support int, str or paddle.CUDAPlace. "
-                "Please input appropriate device again!".format(device))
-    else:
+    if device is None:
         device_id = -1
 
+    elif isinstance(device, int):
+        device_id = device
+    elif isinstance(device, core.CUDAPlace):
+        device_id = device.get_device_id()
+    elif isinstance(device, str):
+        if device.startswith('gpu:'):
+            device_id = int(device[4:])
+        else:
+            raise ValueError(
+                f"The current string {device} is not expected. Because paddle.device.cuda.get_device_properties only support string which is like 'gpu:x'. Please input appropriate string again!"
+            )
+    else:
+        raise ValueError(
+            f"The device type {device} is not expected. Because paddle.device.cuda.get_device_properties only support int, str or paddle.CUDAPlace. Please input appropriate device again!"
+        )
     return core.get_device_properties(device_id)
 
 

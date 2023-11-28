@@ -74,23 +74,23 @@ def _update_dims_mapping_for_matmul(dist_op):
 
     # Deal with dim > 2 and take care of broadcasting
     if out_dims_mapping_len > 2:
-        broadcast_x_dims_mapping = []
-        broadcast_y_dims_mapping = []
-        broadcast_out_dims_mapping = []
-
-        for i in range(out_dims_mapping_len - x_dims_mapping_len):
-            broadcast_x_dims_mapping.append(out_dims_mapping[i])
-        for i in range(x_dims_mapping_len - 2):
-            broadcast_x_dims_mapping.append(x_dims_mapping[i])
-
-        for i in range(out_dims_mapping_len - y_dims_mapping_len):
-            broadcast_y_dims_mapping.append(out_dims_mapping[i])
-        for i in range(y_dims_mapping_len - 2):
-            broadcast_y_dims_mapping.append(y_dims_mapping[i])
-
-        for i in range(out_dims_mapping_len - 2):
-            broadcast_out_dims_mapping.append(out_dims_mapping[i])
-
+        broadcast_x_dims_mapping = [
+            out_dims_mapping[i]
+            for i in range(out_dims_mapping_len - x_dims_mapping_len)
+        ]
+        broadcast_x_dims_mapping.extend(
+            x_dims_mapping[i] for i in range(x_dims_mapping_len - 2)
+        )
+        broadcast_y_dims_mapping = [
+            out_dims_mapping[i]
+            for i in range(out_dims_mapping_len - y_dims_mapping_len)
+        ]
+        broadcast_y_dims_mapping.extend(
+            y_dims_mapping[i] for i in range(y_dims_mapping_len - 2)
+        )
+        broadcast_out_dims_mapping = [
+            out_dims_mapping[i] for i in range(out_dims_mapping_len - 2)
+        ]
         compatible_dims_mapping = compute_compatible_dims_mapping([
             broadcast_x_dims_mapping, broadcast_y_dims_mapping,
             broadcast_out_dims_mapping
@@ -167,23 +167,23 @@ def _is_auto_compatible_for_matmul(dist_op):
 
     # Deal with dim > 2 and take care of broadcasting
     if out_dims_mapping_len > 2:
-        broadcast_x_dims_mapping = []
-        broadcast_y_dims_mapping = []
-        broadcast_out_dims_mapping = []
-
-        for i in range(out_dims_mapping_len - x_dims_mapping_len):
-            broadcast_x_dims_mapping.append(out_dims_mapping[i])
-        for i in range(x_dims_mapping_len - 2):
-            broadcast_x_dims_mapping.append(x_dims_mapping[i])
-
-        for i in range(out_dims_mapping_len - y_dims_mapping_len):
-            broadcast_y_dims_mapping.append(out_dims_mapping[i])
-        for i in range(y_dims_mapping_len - 2):
-            broadcast_y_dims_mapping.append(y_dims_mapping[i])
-
-        for i in range(out_dims_mapping_len - 2):
-            broadcast_out_dims_mapping.append(out_dims_mapping[i])
-
+        broadcast_x_dims_mapping = [
+            out_dims_mapping[i]
+            for i in range(out_dims_mapping_len - x_dims_mapping_len)
+        ]
+        broadcast_x_dims_mapping.extend(
+            x_dims_mapping[i] for i in range(x_dims_mapping_len - 2)
+        )
+        broadcast_y_dims_mapping = [
+            out_dims_mapping[i]
+            for i in range(out_dims_mapping_len - y_dims_mapping_len)
+        ]
+        broadcast_y_dims_mapping.extend(
+            y_dims_mapping[i] for i in range(y_dims_mapping_len - 2)
+        )
+        broadcast_out_dims_mapping = [
+            out_dims_mapping[i] for i in range(out_dims_mapping_len - 2)
+        ]
         is_same = ((broadcast_x_dims_mapping == broadcast_y_dims_mapping) and
                    (broadcast_x_dims_mapping == broadcast_out_dims_mapping))
         if not is_same:
@@ -196,14 +196,7 @@ def _is_auto_compatible_for_matmul(dist_op):
         return False
 
     is_same = (x_dims_mapping[-2] == out_dims_mapping[-2])
-    if not is_same:
-        return False
-
-    is_same = (y_dims_mapping[-1] == out_dims_mapping[-1])
-    if not is_same:
-        return False
-
-    return True
+    return False if not is_same else (y_dims_mapping[-1] == out_dims_mapping[-1])
 
 
 def _right_operand_parameter_matmul_backward(ctx, *args, **kwargs):
@@ -215,34 +208,31 @@ def _right_operand_parameter_matmul_backward(ctx, *args, **kwargs):
     backward_op = dist_op_context.get_cur_src_op()
     rank_id = dist_op_context.get_rank_id()
     dist_attr = ctx.get_op_dist_attr_for_program(backward_op)
-    assert dist_attr is not None, "backward op [{}] don't have dist attribute !".format(
-        str(backward_op))
+    assert (
+        dist_attr is not None
+    ), f"backward op [{str(backward_op)}] don't have dist attribute !"
 
     # FIXME (JZ-LIANG) Remove this hack to support any op mesh group for Pipeline Parallelism
     if rank_id not in dist_attr.process_mesh.processes:
         rank_id = _get_corresponding_rank(ctx, dist_attr.process_mesh, rank_id)
 
-    assert 'Y' in kwargs, "input [{}] is not given".format('Y')
-    assert 'X' in kwargs, "input [{}] is not given".format('X')
-    assert 'Out@GRAD' in kwargs, "input [{}] is not given".format('Out@GRAD')
-    assert 'Y@GRAD' in kwargs, "output [{}] is not given".format('Y@GRAD')
-    assert 'X@GRAD' in kwargs, "output [{}] is not given".format('X@GRAD')
-    assert len(
-        kwargs['Y']
-    ) == 1, "row_parallel_embedding input Ids take 1 variable but got {}".format(
-        kwargs['Y'])
-    assert len(
-        kwargs['X']
-    ) == 1, "row_parallel_embedding input Ids take 1 variable but got {}".format(
-        kwargs['X'])
-    assert len(
-        kwargs['Out@GRAD']
-    ) == 1, "row_parallel_embedding input Ids take 1 variable but got {}".format(
-        kwargs['Out'])
-    assert len(
-        kwargs['Y@GRAD']
-    ) == 1, "row_parallel_embedding output Ids take 1 variable but got {}".format(
-        kwargs['Y@GRAD'])
+    assert 'Y' in kwargs, 'input [Y] is not given'
+    assert 'X' in kwargs, 'input [X] is not given'
+    assert 'Out@GRAD' in kwargs, 'input [Out@GRAD] is not given'
+    assert 'Y@GRAD' in kwargs, 'output [Y@GRAD] is not given'
+    assert 'X@GRAD' in kwargs, 'output [X@GRAD] is not given'
+    assert (
+        len(kwargs['Y']) == 1
+    ), f"row_parallel_embedding input Ids take 1 variable but got {kwargs['Y']}"
+    assert (
+        len(kwargs['X']) == 1
+    ), f"row_parallel_embedding input Ids take 1 variable but got {kwargs['X']}"
+    assert (
+        len(kwargs['Out@GRAD']) == 1
+    ), f"row_parallel_embedding input Ids take 1 variable but got {kwargs['Out']}"
+    assert (
+        len(kwargs['Y@GRAD']) == 1
+    ), f"row_parallel_embedding output Ids take 1 variable but got {kwargs['Y@GRAD']}"
 
     X_var = main_block.var(kwargs['X'][0])
     Y_var = main_block.var(kwargs['Y'][0])
@@ -251,22 +241,14 @@ def _right_operand_parameter_matmul_backward(ctx, *args, **kwargs):
 
     assert not is_parameter_related(
         X_var.name, main_block
-    ), "left operand(X) [{}] of dist matmul should not be parameter".format(
-        X_var.name)
+    ), f"left operand(X) [{X_var.name}] of dist matmul should not be parameter"
 
     Y_var_dim_mapping = dist_attr.get_input_dims_mapping(Y_var.name)
     process_mesh_shape = dist_attr.process_mesh.topology
     process_mesh_group = dist_attr.process_mesh.processes
-    # assert len(
-    #     Y_var_dim_mapping
-    # ) == 2, "dist matmual only support Y operand with 2 dims now but Y({})'s dim is [{}]".format(
-    #     Y_var.name, Y_var_dim_mapping)
-    Y_var_partitioned = False
-    for dim in Y_var_dim_mapping:
-        if dim >= 0 and process_mesh_shape[dim] > 0:
-            Y_var_partitioned = True
-            break
-
+    Y_var_partitioned = any(
+        dim >= 0 and process_mesh_shape[dim] > 0 for dim in Y_var_dim_mapping
+    )
     if is_parameter_related(Y_var.name, main_block) and Y_var_partitioned:
 
         if Y_var_dim_mapping[0] >= 0:
@@ -430,9 +412,7 @@ def _init_param_sync(Weight_var, dist_op_context, startup_block, ctx, rank_id):
     dim_mapping = param_dist_attr.dims_mapping
 
     for axis, size in enumerate(process_mesh.topology):
-        if size <= 1 or axis in dim_mapping:
-            pass
-        else:
+        if size > 1 and axis not in dim_mapping:
             group_ranks = _get_comm_group(process_mesh.processes,
                                           process_mesh.topology, axis, rank_id)
             sync_group = new_process_group(group_ranks)
@@ -477,10 +457,7 @@ class DistributedMatmulImpl0(DistributedOperatorImpl):
         if is_dim_shard(y_dims_mapping[-2]) or is_dim_replicate(y_dims_mapping[
                 -1]):
             return False
-        for mapping in x_dims_mapping[1:-1]:
-            if is_dim_shard(mapping):
-                return False
-        return True
+        return not any(is_dim_shard(mapping) for mapping in x_dims_mapping[1:-1])
 
     def is_output_compatible(self, dist_op):
         op_desc = dist_op.serial_op.desc
@@ -489,25 +466,17 @@ class DistributedMatmulImpl0(DistributedOperatorImpl):
         out_dims_mapping = op_dist_attr.get_output_dims_mapping(out_name)
         if is_dim_replicate(out_dims_mapping[-1]):
             return False
-        for mapping in out_dims_mapping[1:-1]:
-            if is_dim_shard(mapping):
-                return False
-        return True
+        return not any(is_dim_shard(mapping) for mapping in out_dims_mapping[1:-1])
 
     def is_auto_compatible(self, dist_op):
         if (not self.is_input_compatible(dist_op)) or \
-            (not self.is_output_compatible(dist_op)):
+                (not self.is_output_compatible(dist_op)):
             return False
-        if not _is_auto_compatible_for_matmul(dist_op):
-            return False
-        return True
+        return bool(_is_auto_compatible_for_matmul(dist_op))
 
     def update_dims_mapping(self, dist_op):
-        changed = False
         dim_changed = _update_dims_mapping_for_matmul(dist_op)
-        if dim_changed:
-            changed = True
-        return changed
+        return bool(dim_changed)
 
     @staticmethod
     def forward(ctx, *args, **kwargs):

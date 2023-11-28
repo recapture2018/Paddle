@@ -43,12 +43,12 @@ def get_cloud_cluster(args_node_ips, args_node_ip, args_port, selected_devices):
     num_nodes = len(node_ips)
     node_rank = int(node_rank)
 
-    if node_ip != "127.0.0.1" and node_ip != args_node_ip:
+    if node_ip not in ["127.0.0.1", args_node_ip]:
         logger.warning("Please NOTE: When using paddlecloud, node_ip is \
 automatically got from POD_IP. Your input node_ip: {} doesn't equals to \
 node_ip: {} from paddlecloud environment.".format(args_node_ip, node_ip))
 
-    if args_node_ips != "127.0.0.1" and args_node_ips != ",".join(node_ips):
+    if args_node_ips not in ["127.0.0.1", ",".join(node_ips)]:
         logger.warning(
             "Please NOTE: When using paddlecloud, cluster_node_ips is \
 automatically got from PADDLE_TRAINERS(multi nodes) or POD_IP(single node).\
@@ -66,30 +66,26 @@ paddlecloud environment.".format(args_node_ips, node_ips))
 
                 if paddle_ports_num >= len(
                         selected_devices) and paddle_port != args_port:
-                    logger.warning("Use Cloud specified port:{}.".format(
-                        paddle_port))
+                    logger.warning(f"Use Cloud specified port:{paddle_port}.")
                     started_port = paddle_port
 
             except Exception as e:
                 print(e)
-                pass
-
         if started_port is None:
             started_port = 6170
-        ports = [
-            x for x in range(started_port, started_port + len(selected_devices))
+        ports = list(range(started_port, started_port + len(selected_devices)))
+        trainer_endpoints = [
+            ["%s:%d" % (ip, port) for port in ports] for ip in node_ips
         ]
-        trainer_endpoints = []
-        for ip in node_ips:
-            trainer_endpoints.append(["%s:%d" % (ip, port) for port in ports])
     else:
         trainer_endpoints_ori = trainer_endpoints.split(",")
-        trainer_endpoints = []
         assert num_nodes * paddle_ports_num == len(trainer_endpoints_ori)
-        for i in range(num_nodes):
-            trainer_endpoints.append(trainer_endpoints_ori[
-                i * paddle_ports_num:(i + 1) * paddle_ports_num])
-
+        trainer_endpoints = [
+            trainer_endpoints_ori[
+                i * paddle_ports_num : (i + 1) * paddle_ports_num
+            ]
+            for i in range(num_nodes)
+        ]
     logger.debug("parsed from args: node_ips:{} \
         node_ip:{} node_rank:{} trainer_endpoints:{}"
                  .format(node_ips, node_ip, node_rank, trainer_endpoints))
@@ -107,8 +103,9 @@ def get_cluster_and_pod(args):
     # parse arguments, used for cloud-single-machine and local
     selected_devices = get_gpus(args.selected_devices)
     trainers_num = _get_trainers_num()
-    logger.debug("parsed from args trainerss_num:{} selected_devices:{}".format(
-        trainers_num, selected_devices))
+    logger.debug(
+        f"parsed from args trainerss_num:{trainers_num} selected_devices:{selected_devices}"
+    )
 
     cluster = None
     pod = None
@@ -116,9 +113,9 @@ def get_cluster_and_pod(args):
     if args.use_paddlecloud and trainers_num != 1:
         cluster, pod = get_cloud_cluster(args.cluster_node_ips, args.node_ip,
                                          args.started_port, selected_devices)
-        logger.info("get cluster from cloud:{}".format(cluster))
+        logger.info(f"get cluster from cloud:{cluster}")
     else:
         cluster, pod = get_cluster_from_args(args, selected_devices)
-        logger.info("get cluster from args:{}".format(cluster))
+        logger.info(f"get cluster from args:{cluster}")
 
     return cluster, pod

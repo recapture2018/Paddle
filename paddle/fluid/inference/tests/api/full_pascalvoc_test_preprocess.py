@@ -71,65 +71,59 @@ def convert_pascalvoc_local2bin(args):
     lines = [line.strip() for line in flist]
 
     output_file_path = os.path.join(data_dir, args.output_file)
-    f1 = open(output_file_path, "w+b")
-    f1.seek(0)
-    image_nums = len(lines)
-    f1.write(np.array(image_nums).astype('int64').tobytes())
+    with open(output_file_path, "w+b") as f1:
+        f1.seek(0)
+        image_nums = len(lines)
+        f1.write(np.array(image_nums).astype('int64').tobytes())
 
-    boxes = []
-    lbls = []
-    difficults = []
-    object_nums = []
+        boxes = []
+        lbls = []
+        difficults = []
+        object_nums = []
 
-    for line in lines:
-        image_path, label_path = line.split()
-        image_path = os.path.join(data_dir, image_path)
-        label_path = os.path.join(data_dir, label_path)
+        for line in lines:
+            image_path, label_path = line.split()
+            image_path = os.path.join(data_dir, image_path)
+            label_path = os.path.join(data_dir, label_path)
 
-        im = Image.open(image_path)
-        if im.mode == 'L':
-            im = im.convert('RGB')
-        im_width, im_height = im.size
+            im = Image.open(image_path)
+            if im.mode == 'L':
+                im = im.convert('RGB')
+            im_width, im_height = im.size
 
-        im = preprocess(im)
-        np_im = np.array(im)
-        f1.write(np_im.astype('float32').tobytes())
+            im = preprocess(im)
+            np_im = np.array(im)
+            f1.write(np_im.astype('float32').tobytes())
 
-        # layout: label | xmin | ymin | xmax | ymax | difficult
-        bbox_labels = []
-        root = xml.etree.ElementTree.parse(label_path).getroot()
+            # layout: label | xmin | ymin | xmax | ymax | difficult
+            bbox_labels = []
+            root = xml.etree.ElementTree.parse(label_path).getroot()
 
-        objects = root.findall('object')
-        objects_size = len(objects)
-        object_nums.append(objects_size)
+            objects = root.findall('object')
+            objects_size = len(objects)
+            object_nums.append(objects_size)
 
-        for object in objects:
-            bbox_sample = []
-            # start from 1
-            bbox_sample.append(
-                float(label_list.index(object.find('name').text)))
-            bbox = object.find('bndbox')
-            difficult = float(object.find('difficult').text)
-            bbox_sample.append(float(bbox.find('xmin').text) / im_width)
-            bbox_sample.append(float(bbox.find('ymin').text) / im_height)
-            bbox_sample.append(float(bbox.find('xmax').text) / im_width)
-            bbox_sample.append(float(bbox.find('ymax').text) / im_height)
-            bbox_sample.append(difficult)
-            bbox_labels.append(bbox_sample)
+            for object in objects:
+                bbox_sample = [float(label_list.index(object.find('name').text))]
+                bbox = object.find('bndbox')
+                difficult = float(object.find('difficult').text)
+                bbox_sample.append(float(bbox.find('xmin').text) / im_width)
+                bbox_sample.append(float(bbox.find('ymin').text) / im_height)
+                bbox_sample.append(float(bbox.find('xmax').text) / im_width)
+                bbox_sample.extend((float(bbox.find('ymax').text) / im_height, difficult))
+                bbox_labels.append(bbox_sample)
 
-        bbox_labels = np.array(bbox_labels)
-        if len(bbox_labels) == 0: continue
+            bbox_labels = np.array(bbox_labels)
+            if len(bbox_labels) == 0: continue
 
-        lbls.extend(bbox_labels[:, 0])
-        boxes.extend(bbox_labels[:, 1:5])
-        difficults.extend(bbox_labels[:, -1])
+            lbls.extend(bbox_labels[:, 0])
+            boxes.extend(bbox_labels[:, 1:5])
+            difficults.extend(bbox_labels[:, -1])
 
-    f1.write(np.array(object_nums).astype('uint64').tobytes())
-    f1.write(np.array(lbls).astype('int64').tobytes())
-    f1.write(np.array(boxes).astype('float32').tobytes())
-    f1.write(np.array(difficults).astype('int64').tobytes())
-    f1.close()
-
+        f1.write(np.array(object_nums).astype('uint64').tobytes())
+        f1.write(np.array(lbls).astype('int64').tobytes())
+        f1.write(np.array(boxes).astype('float32').tobytes())
+        f1.write(np.array(difficults).astype('int64').tobytes())
     object_nums_sum = sum(object_nums)
     # The data should be contains 
     # number of images + all images data + an array that represent object numbers of each image
@@ -177,67 +171,63 @@ def convert_pascalvoc_tar2bin(tar_path, data_out_path):
     image_nums = len(lines)
     per_percentage = image_nums / 100
 
-    f1 = open(data_out_path, "w+b")
-    f1.seek(0)
-    f1.write(np.array(image_nums).astype('int64').tobytes())
-    for tarInfo in tar:
-        if tarInfo.isfile():
-            tmp_filename = tarInfo.name
-            name_arr = tmp_filename.split('/')
-            name_prefix = name_arr[-1].split('.')[0]
-            if name_arr[-2] == 'JPEGImages' and name_prefix in lines:
-                images[name_prefix] = tar.extractfile(tarInfo).read()
-            if name_arr[-2] == 'Annotations' and name_prefix in lines:
-                gt_labels[name_prefix] = tar.extractfile(tarInfo).read()
+    with open(data_out_path, "w+b") as f1:
+        f1.seek(0)
+        f1.write(np.array(image_nums).astype('int64').tobytes())
+        for tarInfo in tar:
+            if tarInfo.isfile():
+                tmp_filename = tarInfo.name
+                name_arr = tmp_filename.split('/')
+                name_prefix = name_arr[-1].split('.')[0]
+                if name_arr[-2] == 'JPEGImages' and name_prefix in lines:
+                    images[name_prefix] = tar.extractfile(tarInfo).read()
+                if name_arr[-2] == 'Annotations' and name_prefix in lines:
+                    gt_labels[name_prefix] = tar.extractfile(tarInfo).read()
 
-    for line_idx, name_prefix in enumerate(lines):
-        im = Image.open(StringIO(images[name_prefix]))
-        if im.mode == 'L':
-            im = im.convert('RGB')
-        im_width, im_height = im.size
+        for line_idx, name_prefix in enumerate(lines):
+            im = Image.open(StringIO(images[name_prefix]))
+            if im.mode == 'L':
+                im = im.convert('RGB')
+            im_width, im_height = im.size
 
-        im = preprocess(im)
-        np_im = np.array(im)
-        f1.write(np_im.astype('float32').tobytes())
+            im = preprocess(im)
+            np_im = np.array(im)
+            f1.write(np_im.astype('float32').tobytes())
 
-        # layout: label | xmin | ymin | xmax | ymax | difficult
-        bbox_labels = []
-        root = xml.etree.ElementTree.fromstring(gt_labels[name_prefix])
+            # layout: label | xmin | ymin | xmax | ymax | difficult
+            bbox_labels = []
+            root = xml.etree.ElementTree.fromstring(gt_labels[name_prefix])
 
-        objects = root.findall('object')
-        objects_size = len(objects)
-        object_nums.append(objects_size)
+            objects = root.findall('object')
+            objects_size = len(objects)
+            object_nums.append(objects_size)
 
-        for object in objects:
-            bbox_sample = []
-            bbox_sample.append(
-                float(label_list.index(object.find('name').text)))
-            bbox = object.find('bndbox')
-            difficult = float(object.find('difficult').text)
-            bbox_sample.append(float(bbox.find('xmin').text) / im_width)
-            bbox_sample.append(float(bbox.find('ymin').text) / im_height)
-            bbox_sample.append(float(bbox.find('xmax').text) / im_width)
-            bbox_sample.append(float(bbox.find('ymax').text) / im_height)
-            bbox_sample.append(difficult)
-            bbox_labels.append(bbox_sample)
+            for object in objects:
+                bbox_sample = [float(label_list.index(object.find('name').text))]
+                bbox = object.find('bndbox')
+                difficult = float(object.find('difficult').text)
+                bbox_sample.append(float(bbox.find('xmin').text) / im_width)
+                bbox_sample.append(float(bbox.find('ymin').text) / im_height)
+                bbox_sample.append(float(bbox.find('xmax').text) / im_width)
+                bbox_sample.extend((float(bbox.find('ymax').text) / im_height, difficult))
+                bbox_labels.append(bbox_sample)
 
-        bbox_labels = np.array(bbox_labels)
-        if len(bbox_labels) == 0: continue
-        lbls.extend(bbox_labels[:, 0])
-        boxes.extend(bbox_labels[:, 1:5])
-        difficults.extend(bbox_labels[:, -1])
+            bbox_labels = np.array(bbox_labels)
+            if len(bbox_labels) == 0: continue
+            lbls.extend(bbox_labels[:, 0])
+            boxes.extend(bbox_labels[:, 1:5])
+            difficults.extend(bbox_labels[:, -1])
 
-        if line_idx % per_percentage:
-            print_processbar(line_idx / per_percentage)
+            if line_idx % per_percentage:
+                print_processbar(line_idx / per_percentage)
 
-    # The data should be stored in binary in following sequence: 
-    # number of images->all images data->an array that represent object numbers in each image
-    # ->labels of all objects in images->bboxes of all objects->difficulties of all objects
-    f1.write(np.array(object_nums).astype('uint64').tobytes())
-    f1.write(np.array(lbls).astype('int64').tobytes())
-    f1.write(np.array(boxes).astype('float32').tobytes())
-    f1.write(np.array(difficults).astype('int64').tobytes())
-    f1.close()
+        # The data should be stored in binary in following sequence: 
+        # number of images->all images data->an array that represent object numbers in each image
+        # ->labels of all objects in images->bboxes of all objects->difficulties of all objects
+        f1.write(np.array(object_nums).astype('uint64').tobytes())
+        f1.write(np.array(lbls).astype('int64').tobytes())
+        f1.write(np.array(boxes).astype('float32').tobytes())
+        f1.write(np.array(difficults).astype('int64').tobytes())
     print_processbar(100)
     print("Conversion finished!\n")
 

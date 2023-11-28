@@ -66,26 +66,23 @@ class DistributedDefaultImpl0(DistributedOperatorImpl):
         op_desc = dist_op.serial_op.desc
         op_dist_attr = dist_op.dist_attr
         output_names = op_desc.output_names()
-        xshape_arg_names = []
-        if "XShape" in output_names:
-            xshape_arg_names = op_desc.output("XShape")
+        xshape_arg_names = op_desc.output("XShape") if "XShape" in output_names else []
         for arg_name in op_desc.output_arg_names():
             serial_tensor = dist_op.get_serial_output(arg_name)
             if serial_tensor.is_parameter:
                 continue
             dims_mapping = op_dist_attr.get_output_dims_mapping(arg_name)
-            if arg_name not in xshape_arg_names:
-                if len(dims_mapping) > 1:
-                    for mapping in dims_mapping[1:]:
-                        if mapping != -1:
-                            return False
-            else:
+            if arg_name in xshape_arg_names:
                 if dims_mapping[0] != -1:
                     return False
                 if len(dims_mapping) > 2:
                     for mapping in dims_mapping[2:]:
                         if mapping != -1:
                             return False
+            elif len(dims_mapping) > 1:
+                for mapping in dims_mapping[1:]:
+                    if mapping != -1:
+                        return False
         return True
 
     def is_auto_compatible(self, dist_op):
@@ -106,9 +103,7 @@ class DistributedDefaultImpl0(DistributedOperatorImpl):
 
         # Check output compatibility
         output_names = op_desc.output_names()
-        xshape_arg_names = []
-        if "XShape" in output_names:
-            xshape_arg_names = op_desc.output("XShape")
+        xshape_arg_names = op_desc.output("XShape") if "XShape" in output_names else []
         for arg_name in op_desc.output_arg_names():
             serial_tensor = dist_op.get_serial_output(arg_name)
             if serial_tensor.is_parameter:
@@ -130,23 +125,22 @@ class DistributedDefaultImpl0(DistributedOperatorImpl):
                 batch_dim_mappings.append(dims_mapping[1])
 
         # Check batch dim mapping compatibility
-        if not all(batch_dim_mappings[0] == dim_mapping
-                   for dim_mapping in batch_dim_mappings):
-            return False
-
-        return True
+        return all(
+            (
+                batch_dim_mappings[0] == dim_mapping
+                for dim_mapping in batch_dim_mappings
+            )
+        )
 
     def update_dims_mapping(self, dist_op):
         changed = False
         op_desc = dist_op.serial_op.desc
         op_dist_attr = dist_op.dist_attr
         # The following statement will be replaced by a more elegent way
-        if op_desc.type() == "shape" or op_desc.type() == "slice":
+        if op_desc.type() in ["shape", "slice"]:
             return False
         output_names = op_desc.output_names()
-        xshape_arg_names = []
-        if "XShape" in output_names:
-            xshape_arg_names = op_desc.output("XShape")
+        xshape_arg_names = op_desc.output("XShape") if "XShape" in output_names else []
         batch_dim_mappings = []
         for arg_name in op_desc.input_arg_names():
             serial_tensor = dist_op.get_serial_input(arg_name)
@@ -180,15 +174,14 @@ class DistributedDefaultImpl0(DistributedOperatorImpl):
             if serial_tensor.is_parameter:
                 continue
             dims_mapping = op_dist_attr.get_output_dims_mapping(arg_name)
-            if arg_name not in xshape_arg_names:
-                if compatible_dim_mapping != dims_mapping[0]:
-                    dims_mapping[0] = compatible_dim_mapping
-                    changed = True
-            else:
+            if arg_name in xshape_arg_names:
                 if compatible_dim_mapping != dims_mapping[1]:
                     dims_mapping[1] = compatible_dim_mapping
                     changed = True
 
+            elif compatible_dim_mapping != dims_mapping[0]:
+                dims_mapping[0] = compatible_dim_mapping
+                changed = True
         return changed
 
     @staticmethod
@@ -202,18 +195,15 @@ class DistributedDefaultImpl0(DistributedOperatorImpl):
 
         # check validation of inputs / outputs
         for input_name in src_op.desc.input_names():
-            assert input_name in kwargs, "input [{}] is not given".format(
-                input_name)
+            assert input_name in kwargs, f"input [{input_name}] is not given"
             assert len(kwargs[input_name]) == len(
                 src_op.desc.input(input_name)
-            ), "number of tensor for input [{}] is not match".format(input_name)
+            ), f"number of tensor for input [{input_name}] is not match"
         for output_name in src_op.desc.output_names():
-            assert output_name in kwargs, "input [{}] is not given".format(
-                output_name)
+            assert output_name in kwargs, f"input [{output_name}] is not given"
             assert len(kwargs[output_name]) == len(
                 src_op.desc.output(output_name)
-            ), "number of tensor for input [{}] is not match".format(
-                output_name)
+            ), f"number of tensor for input [{output_name}] is not match"
 
         # replicate op in dist program
         dist_op_desc = main_block.desc.append_op()
@@ -244,9 +234,7 @@ class DistributedDefaultImpl0(DistributedOperatorImpl):
 
                 # NOTE all not splited axis should be presented in mesh
                 for axis, size in enumerate(process_mesh.topology):
-                    if size <= 1 or axis in dims_mapping:
-                        pass
-                    else:
+                    if size > 1 and axis not in dims_mapping:
                         group_ranks = _get_comm_group(process_mesh.processes,
                                                       process_mesh.topology,
                                                       axis, rank_id)
@@ -281,24 +269,22 @@ class DistributedDefaultImpl0(DistributedOperatorImpl):
         main_block = dist_op_context.get_dst_main_program().global_block()
         backward_op = dist_op_context.get_cur_src_op()
         dist_attr = ctx.get_op_dist_attr_for_program(backward_op)
-        assert dist_attr is not None, "backward op [{}] don't have dist attribute !".format(
-            str(backward_op))
+        assert (
+            dist_attr is not None
+        ), f"backward op [{str(backward_op)}] don't have dist attribute !"
         rank_id = dist_op_context.get_rank_id()
 
         # check validation of inputs / outputs
         for input_name in backward_op.desc.input_names():
-            assert input_name in kwargs, "input [{}] is not given".format(
-                input_name)
+            assert input_name in kwargs, f"input [{input_name}] is not given"
             assert len(kwargs[input_name]) == len(
                 backward_op.desc.input(input_name)
-            ), "number of tensor for input [{}] is not match".format(input_name)
+            ), f"number of tensor for input [{input_name}] is not match"
         for output_name in backward_op.desc.output_names():
-            assert output_name in kwargs, "input [{}] is not given".format(
-                output_name)
+            assert output_name in kwargs, f"input [{output_name}] is not given"
             assert len(kwargs[output_name]) == len(
                 backward_op.desc.output(output_name)
-            ), "number of tensor for input [{}] is not match".format(
-                output_name)
+            ), f"number of tensor for input [{output_name}] is not match"
 
         # replicate op in dist program
         dist_op_desc = main_block.desc.append_op()
@@ -353,22 +339,20 @@ class DistributedDefaultImpl0(DistributedOperatorImpl):
                         if "subprog_" in varname:
                             varname = varname[:varname.index(".subprog_")]
 
-                        assert len(
-                            backward_op.desc.input(input_name)
-                        ) == 1, "parameter input to grad op should be length 1, but got [{}]".format(
-                            backward_op.desc.input(input_name))
+                        assert (
+                            len(backward_op.desc.input(input_name)) == 1
+                        ), f"parameter input to grad op should be length 1, but got [{backward_op.desc.input(input_name)}]"
 
-                        assert varname + "@GRAD" in backward_op.desc.output_arg_names(
-                        ), "parameter's grad [{}] not found in the grad op's output".format(
-                            varname + "@GRAD")
-                        assert len(
-                            backward_op.desc.output(input_name + "@GRAD")
-                        ) == 1, "parameter grad of grad op should be length 1, but got [{}]".format(
-                            backward_op.desc.output(input_name + "@GRAD"))
-                        allreduce_vars.append(
-                            backward_op.desc.output(input_name + "@GRAD")[0])
+                        assert (
+                            f"{varname}@GRAD"
+                            in backward_op.desc.output_arg_names()
+                        ), f"parameter's grad [{varname}@GRAD] not found in the grad op's output"
+                        assert (
+                            len(backward_op.desc.output(f"{input_name}@GRAD")) == 1
+                        ), f'parameter grad of grad op should be length 1, but got [{backward_op.desc.output(f"{input_name}@GRAD")}]'
+                        allreduce_vars.append(backward_op.desc.output(f"{input_name}@GRAD")[0])
 
-            if len(allreduce_vars) > 0:
+            if allreduce_vars:
 
                 for varname in allreduce_vars:
 

@@ -76,15 +76,13 @@ class AutoParallelizer:
         # Prepare information for auto mapping
         self._rank_mapping_path = os.getenv("PADDLE_RANK_MAPPING_PATH", None)
         enable_auto_mapping_env = os.getenv("PADDLE_ENABLE_AUTO_MAPPING", None)
-        if enable_auto_mapping_env is None:
-            self._enable_auto_mapping = False
-        else:
-            self._enable_auto_mapping = True
+        self._enable_auto_mapping = enable_auto_mapping_env is not None
         self._pass_context = PassContext()
 
         self._need_rank_mapping = os.getenv("PADDLE_NEED_RANK_MAPPING")
-        self._need_rank_mapping = True if self._need_rank_mapping and \
-            self._need_rank_mapping.lower() == 'true' else False
+        self._need_rank_mapping = bool(
+            self._need_rank_mapping and self._need_rank_mapping.lower() == 'true'
+        )
         self._pass_context = None
 
     def _remove_distributed_attrs(self, main_program):

@@ -31,18 +31,12 @@ def is_collective_comm_op(op):
         "c_allreduce_prod", "c_reduce_sum", "c_reduce_min", "c_reduce_max",
         "c_reduce_prod", "c_broadcast", "c_allgather"
     ]
-    if op.type in comm_list:
-        return True
-    else:
-        return False
+    return op.type in comm_list
 
 
 def is_p2p_comm_op(op):
     comm_list = ["send_v2", "recv_v2"]
-    if op.type in comm_list:
-        return True
-    else:
-        return False
+    return op.type in comm_list
 
 
 def get_dtype_bytes(dtype):
@@ -66,7 +60,7 @@ def get_dtype_bytes(dtype):
     elif dtype == paddle.uint8:
         num_bytes = 1
     else:
-        raise ValueError("Unrecognized dtype {}.".format(dtype))
+        raise ValueError(f"Unrecognized dtype {dtype}.")
     return num_bytes
 
 
@@ -97,20 +91,11 @@ def get_comm_volume(comm_op, src_rank, tgt_rank):
     elif "c_allgather" in comm_op_type:
         comm_volume = tensor_bytes
     elif "c_broadcast" in comm_op_type:
-        if comm_op.attr("root") == src_rank:
-            comm_volume = tensor_bytes
-        else:
-            comm_volume = None
+        comm_volume = tensor_bytes if comm_op.attr("root") == src_rank else None
     elif "c_reduce" in comm_op_type:
-        if comm_op.attr("root_id") == src_rank:
-            comm_volume = None
-        else:
-            comm_volume = tensor_bytes
+        comm_volume = None if comm_op.attr("root_id") == src_rank else tensor_bytes
     elif "send_v2" in comm_op_type:
-        if comm_op.attr("peer") == tgt_rank:
-            comm_volume = tensor_bytes
-        else:
-            comm_volume = None
+        comm_volume = tensor_bytes if comm_op.attr("peer") == tgt_rank else None
     elif "recv_v2" in comm_op_type:
         comm_volume = None
     else:
@@ -128,15 +113,12 @@ def analyze_comm_requirements_from_op(op, rank, g_process_group_map):
         for tgt_rank in process_group.ranks:
             comm_volume = get_comm_volume(op, rank, tgt_rank)
             if comm_volume is not None:
-                comm_requirements_to_ranks[tgt_rank] = {}
-                comm_requirements_to_ranks[tgt_rank][
-                    "comm_volume"] = comm_volume
+                comm_requirements_to_ranks[tgt_rank] = {"comm_volume": comm_volume}
     elif is_p2p_comm_op(op):
         tgt_rank = op.attr("peer")
         comm_volume = get_comm_volume(op, rank, tgt_rank)
         if comm_volume is not None:
-            comm_requirements_to_ranks[tgt_rank] = {}
-            comm_requirements_to_ranks[tgt_rank]["comm_volume"] = comm_volume
+            comm_requirements_to_ranks[tgt_rank] = {"comm_volume": comm_volume}
     else:
         comm_requirements_to_ranks = {}
     return comm_requirements_to_ranks
@@ -145,10 +127,8 @@ def analyze_comm_requirements_from_op(op, rank, g_process_group_map):
 def analyze_requirements_for_program(src_info, rank):
     program = src_info[0]
     g_process_group_map = src_info[1]
-    resource_requirements = {}
     comm_requirements_to_ranks = {}
-    # only support device_type and only support GPU for now
-    resource_requirements["device_type"] = DeviceType.GPU
+    resource_requirements = {"device_type": DeviceType.GPU}
     for block in program.blocks:
         for op in block.ops:
             cur_comm_requirements_to_ranks = analyze_comm_requirements_from_op(
@@ -158,9 +138,9 @@ def analyze_requirements_for_program(src_info, rank):
                     comm_requirements_to_ranks[tgt_rank][
                         "comm_volume"] += link_info["comm_volume"]
                 else:
-                    comm_requirements_to_ranks[tgt_rank] = {}
-                    comm_requirements_to_ranks[tgt_rank][
-                        "comm_volume"] = link_info["comm_volume"]
+                    comm_requirements_to_ranks[tgt_rank] = {
+                        "comm_volume": link_info["comm_volume"]
+                    }
     return resource_requirements, comm_requirements_to_ranks
 
 
@@ -187,10 +167,10 @@ def build_cluster_graph(cluster):
     for machine in cluster.machines.values():
         for device in machine.devices.values():
             graph.add_node(device.global_id, device=device)
-            if cuda_visible_devices and device.local_id not in cuda_visible_devices:
-                graph.nodes[device.global_id]["occupied"] = True
-            else:
-                graph.nodes[device.global_id]["occupied"] = False
+            graph.nodes[device.global_id]["occupied"] = bool(
+                cuda_visible_devices
+                and device.local_id not in cuda_visible_devices
+            )
         for link in machine.links.values():
             graph.add_edge(
                 link.source.global_id, link.target.global_id, link=link)

@@ -20,7 +20,7 @@ def check_import_scipy(OsName):
             import scipy.io as scio
         except ImportError as e:
             print_info = str(e)
-        if (len(print_info) > 0):
+        if print_info != "":
             if 'DLL load failed' in print_info:
                 raise ImportError(
                     print_info +

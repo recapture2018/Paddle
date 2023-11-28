@@ -72,25 +72,29 @@ def _py_supported_check():
 
 
 def _options_valid_check(options):
-    # `print_config` keeped as a debug options, not show to users
-    supported_options = [
-        'start_method', 'ips', 'gpus', 'xpus', 'print_config', 'backend'
-    ]
     deprecated_options = [
         'selected_devices', 'started_port', 'cluster_node_ips', 'node_ip',
         'use_paddlecloud'
+    ]
+    supported_options = [
+        'start_method',
+        'ips',
+        'gpus',
+        'xpus',
+        'print_config',
+        'backend',
     ]
     for key in options:
         if key not in supported_options:
             if key in deprecated_options:
                 warnings.warn(
-                    "The config option (%s) of `paddle.distributed.spawn` is deprecated. "
-                    "Please use the latest config options stated in the `spawn` API documentation."
-                    % key, DeprecationWarning)
+                    f"The config option ({key}) of `paddle.distributed.spawn` is deprecated. Please use the latest config options stated in the `spawn` API documentation.",
+                    DeprecationWarning,
+                )
             else:
                 raise ValueError(
-                    "The config option (%s) of `paddle.distributed.spawn` is not supported."
-                    % key)
+                    f"The config option ({key}) of `paddle.distributed.spawn` is not supported."
+                )
 
 
 def _get_default_nprocs():
@@ -103,8 +107,8 @@ def _get_default_nprocs():
         return multiprocessing.cpu_count()
     else:
         raise RuntimeError(
-            "`paddle.distributed.spawn` does not support parallel training on device `{}` now.".
-            format(device))
+            f"`paddle.distributed.spawn` does not support parallel training on device `{device}` now."
+        )
 
 
 def _get_default_backend():
@@ -117,8 +121,8 @@ def _get_default_backend():
         return 'gloo'
     else:
         raise RuntimeError(
-            "`paddle.distributed.spawn` does not support parallel training on device `{}` now.".
-            format(device))
+            f"`paddle.distributed.spawn` does not support parallel training on device `{device}` now."
+        )
 
 
 def _get_node_ip(ips):
@@ -142,9 +146,6 @@ def _get_subprocess_env_list(nprocs, options):
     check_backend(options['backend'])
     block_windows_and_macos(options['backend'])
 
-    # contruct processes env list
-    processes_env_list = []
-
     # get args from kwargs
     args = ParallelEnvArgs()
 
@@ -152,8 +153,8 @@ def _get_subprocess_env_list(nprocs, options):
     args.cluster_node_ips = options.get('ips', None)
     if args.cluster_node_ips is None:
         args.cluster_node_ips = options.get('cluster_node_ips', None)
-        if args.cluster_node_ips is None:
-            args.cluster_node_ips = "127.0.0.1"
+    if args.cluster_node_ips is None:
+        args.cluster_node_ips = "127.0.0.1"
 
     # deal with `gpus` or `xpus`
     # set default selected devices(gpus or xpus)
@@ -194,9 +195,9 @@ def _get_subprocess_env_list(nprocs, options):
                     (len(selected_device_list), nprocs))
             for card_id in selected_device_list:
                 if card_id not in env_devices_list:
-                    raise ValueError("The selected gpu card %s cannot found in "
-                                     "CUDA_VISIBLE_DEVICES (%s)." %
-                                     (card_id, ",".join(env_devices_list)))
+                    raise ValueError(
+                        f'The selected gpu card {card_id} cannot found in CUDA_VISIBLE_DEVICES ({",".join(env_devices_list)}).'
+                    )
 
     elif options['backend'] == 'bkcl':
         args.selected_devices = options.get('xpus', None)
@@ -229,9 +230,9 @@ def _get_subprocess_env_list(nprocs, options):
                     (len(selected_device_list), nprocs))
             for card_id in selected_device_list:
                 if card_id not in env_devices_list:
-                    raise ValueError("The selected xpu card %s cannot found in "
-                                     "XPU_VISIBLE_DEVICES (%s)." %
-                                     (card_id, ",".join(env_devices_list)))
+                    raise ValueError(
+                        f'The selected xpu card {card_id} cannot found in XPU_VISIBLE_DEVICES ({",".join(env_devices_list)}).'
+                    )
     elif options['backend'] == 'gloo':
         # TODO check gpu / xpu flag must not exist
         warnings.warn(
@@ -263,17 +264,16 @@ def _get_subprocess_env_list(nprocs, options):
 
     # get cluster and pod config
     if options['backend'] == 'gloo':
-        devices_per_proc = [x for x in range(0, nprocs)]
+        devices_per_proc = list(range(0, nprocs))
         cluster, pod = get_cluster_from_args(args, DeviceMode.CPU,
                                              devices_per_proc)
     else:
         cluster, pod = get_cluster_and_pod(args)
 
-    # prepare subprocess env list
-    for trainer in pod.trainers:
-        processes_env_list.append(
-            _prepare_trainer_env(cluster, trainer, options['backend']))
-
+    processes_env_list = [
+        _prepare_trainer_env(cluster, trainer, options['backend'])
+        for trainer in pod.trainers
+    ]
     # [Debug] print config
     args.print_config = options.get('print_config', False)
     if args.print_config:
@@ -303,12 +303,6 @@ def _set_trainer_env(env_dict, backend):
         set_flags({'FLAGS_selected_gpus': env_dict['FLAGS_selected_gpus']})
     elif backend == 'bkcl':
         set_flags({'FLAGS_selected_xpus': env_dict['FLAGS_selected_xpus']})
-    else:
-        #NOTE(xiongkun) why not raise Error ? 
-        # So far, we added support for CPU parallel, and will be applied when paddle is not 
-        # compiled with cuda or xp. just do nothing.
-        pass
-
     for var_name in env_dict:
         os.environ[var_name] = env_dict[var_name]
 
@@ -375,18 +369,17 @@ class MultiprocessContext(object):
     def _throw_exception(self, error_index):
         if self.error_queues[error_index].empty():
             exitcode = self.processes[error_index].exitcode
-            if exitcode < 0:
-                name = signal.Signals(-exitcode).name
-                raise Exception("Process %d terminated with signal %s." %
-                                (error_index, name))
-            else:
+            if exitcode >= 0:
                 raise Exception("Process %d terminated with exit code %d." %
                                 (error_index, exitcode))
 
+            name = signal.Signals(-exitcode).name
+            raise Exception("Process %d terminated with signal %s." %
+                            (error_index, name))
         original_trace = self.error_queues[error_index].get()
         msg = "\n\n----------------------------------------------\n" \
-              "Process %d terminated with the following error:\n" \
-              "----------------------------------------------\n\n" % error_index
+                  "Process %d terminated with the following error:\n" \
+                  "----------------------------------------------\n\n" % error_index
         msg += original_trace
         raise Exception(msg)
 

@@ -22,10 +22,7 @@ BACKWARD_ONLY_DIST_OPS = {'check_finite_and_unscale', 'update_loss_scaling'}
 
 
 def is_elementwise_op(op_type):
-    if op_type in _g_elementwise_ops:
-        return True
-    else:
-        return False
+    return op_type in _g_elementwise_ops
 
 
 class DistributedOperatorImplContainer:
@@ -56,25 +53,13 @@ class DistributedOperatorImplContainer:
         return self._impls[impl_idx]
 
     def get_input_compatible_impls(self, dist_op):
-        compatible_impls = []
-        for impl in self.impls:
-            if impl.is_input_compatible(dist_op):
-                compatible_impls.append(impl)
-        return compatible_impls
+        return [impl for impl in self.impls if impl.is_input_compatible(dist_op)]
 
     def get_output_compatible_impls(self, dist_op):
-        compatible_impls = []
-        for impl in self.impls:
-            if impl.is_output_compatible(dist_op):
-                compatible_impls.append(impl)
-        return compatible_impls
+        return [impl for impl in self.impls if impl.is_output_compatible(dist_op)]
 
     def get_compatible_impls(self, dist_op):
-        compatible_impls = []
-        for impl in self.impls:
-            if impl.is_auto_compatible(dist_op):
-                compatible_impls.append(impl)
-        return compatible_impls
+        return [impl for impl in self.impls if impl.is_auto_compatible(dist_op)]
 
 
 class DistributedOperatorImpl(abc.ABC):
@@ -196,12 +181,7 @@ def find_best_compatible_distributed_operator_impl(dist_op, fwd=True):
             compatible_impls.extend(
                 dist_op_default_impl_container.get_output_compatible_impls(
                     dist_op))
-    if compatible_impls:
-        # For now, just return the first compatible impl
-        best_compatible_impl = compatible_impls[0]
-    else:
-        best_compatible_impl = None
-    return best_compatible_impl
+    return compatible_impls[0] if compatible_impls else None
 
 
 def is_parameter_related(varname, block):

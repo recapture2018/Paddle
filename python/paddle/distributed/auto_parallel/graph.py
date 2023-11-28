@@ -42,8 +42,7 @@ class Node:
             return False
 
     def __str__(self):
-        str = "(id: {}, attrs: {})".format(self.id, self.attrs)
-        return str
+        return f"(id: {self.id}, attrs: {self.attrs})"
 
 
 class Edge:
@@ -81,10 +80,7 @@ class Edge:
             return False
 
     def __str__(self):
-        str = ""
-        str += "(src_id: {}, tgt_id: {}, attrs: {})".format(
-            self.src_id, self.tgt_id, self._attrs)
-        return str
+        return f"(src_id: {self.src_id}, tgt_id: {self.tgt_id}, attrs: {self._attrs})"
 
 
 class Graph:
@@ -158,15 +154,14 @@ class Graph:
             return False
 
     def __str__(self):
-        str = ""
-        str += "**************Nodes**************\n"
+        str = "" + "**************Nodes**************\n"
         for node_id in self.nodes:
-            str += "{}\n".format(self.nodes[node_id])
+            str += f"{self.nodes[node_id]}\n"
 
         str += "**************Edges**************\n"
         for src_id in self.adjs:
-            str += "--------------{}--------------\n".format(src_id)
-            for idx, tgt_id in enumerate(self.adjs[src_id]):
-                str += "{}\n".format(self.adjs[src_id][tgt_id])
+            str += f"--------------{src_id}--------------\n"
+            for tgt_id in self.adjs[src_id]:
+                str += f"{self.adjs[src_id][tgt_id]}\n"
 
         return str

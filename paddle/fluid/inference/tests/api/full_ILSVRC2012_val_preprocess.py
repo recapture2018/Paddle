@@ -76,16 +76,14 @@ def process_image(img):
 
 
 def download_concat(cache_folder, zip_path):
-    data_urls = []
-    data_md5s = []
-    data_urls.append(
-        'https://paddle-inference-dist.bj.bcebos.com/int8/ILSVRC2012_img_val.tar.gz.partaa'
-    )
-    data_md5s.append('60f6525b0e1d127f345641d75d41f0a8')
-    data_urls.append(
-        'https://paddle-inference-dist.bj.bcebos.com/int8/ILSVRC2012_img_val.tar.gz.partab'
-    )
-    data_md5s.append('1e9f15f64e015e58d6f9ec3210ed18b5')
+    data_urls = [
+        'https://paddle-inference-dist.bj.bcebos.com/int8/ILSVRC2012_img_val.tar.gz.partaa',
+        'https://paddle-inference-dist.bj.bcebos.com/int8/ILSVRC2012_img_val.tar.gz.partab',
+    ]
+    data_md5s = [
+        '60f6525b0e1d127f345641d75d41f0a8',
+        '1e9f15f64e015e58d6f9ec3210ed18b5',
+    ]
     file_names = []
     print("Downloading full ImageNet Validation dataset ...")
     for i in range(0, len(data_urls)):
@@ -112,10 +110,11 @@ def convert_Imagenet_tar2bin(tar_file, output_file):
 
     print_processbar(0)
 
-    dataset = {}
-    for tarInfo in tar:
-        if tarInfo.isfile() and tarInfo.name != VALLIST_TAR_NAME:
-            dataset[tarInfo.name] = tar.extractfile(tarInfo).read()
+    dataset = {
+        tarInfo.name: tar.extractfile(tarInfo).read()
+        for tarInfo in tar
+        if tarInfo.isfile() and tarInfo.name != VALLIST_TAR_NAME
+    }
     with open(output_file, "w+b") as ofs:
         ofs.seek(0)
         num = np.array(int(FULL_IMAGES)).astype('int64')
@@ -143,7 +142,7 @@ def convert_Imagenet_tar2bin(tar_file, output_file):
             name, label = line.split()
             val_dict[name] = label
 
-        for img_name in dataset.keys():
+        for img_name in dataset:
             remove_len = (len(FOLDER_NAME))
             img_name_prim = img_name[remove_len:]
             label = val_dict[img_name_prim]
@@ -167,8 +166,8 @@ def run_convert():
                os.path.getsize(output_file) == FULL_SIZE_BYTES):
         if os.path.exists(output_file):
             sys.stderr.write(
-                "\n\nThe existing binary file[{}] is broken. Start to generate new one...\n\n".
-                format(output_file))
+                f"\n\nThe existing binary file[{output_file}] is broken. Start to generate new one...\n\n"
+            )
             os.remove(output_file)
         if retry < try_limit:
             retry = retry + 1
@@ -192,7 +191,7 @@ def convert_Imagenet_local2bin(args):
 
         with open(bin_file_path, "w+b") as of:
             of.seek(0)
-            num = np.array(int(num_images)).astype('int64')
+            num = np.array(num_images).astype('int64')
             of.write(num.tobytes())
             for idx, line in enumerate(lines):
                 img_path, label = line.split()
