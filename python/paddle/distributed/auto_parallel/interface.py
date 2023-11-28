@@ -108,5 +108,4 @@ def shard_op(op_fn, dist_attr=None):
     _static_mode_check()
     assert dist_attr is None or isinstance(dist_attr, (dict, OperatorDistributedAttribute)), \
         "The type of dist_attr must be dict or OperatorDistributedAttribute."
-    dist_module = DistributedModule(op_fn, dist_attr)
-    return dist_module
+    return DistributedModule(op_fn, dist_attr)

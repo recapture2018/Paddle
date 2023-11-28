@@ -32,8 +32,7 @@ def _flatten_nested_list(nested_list):
     Get a list of all items in a nested_list.
     Ref: https://stackoverflow.com/questions/952914/how-to-make-a-flat-list-out-of-a-list-of-lists
     """
-    result = numpy.array(nested_list).flatten().tolist()
-    return result
+    return numpy.array(nested_list).flatten().tolist()
 
 
 class ProcessMesh(object):
@@ -127,14 +126,10 @@ class ProcessMesh(object):
     def __eq__(self, other):
         if not isinstance(other, ProcessMesh):
             return False
-        if self.topology != other.topology or self.processes != other.processes:
-            return False
-        return True
+        return self.topology == other.topology and self.processes == other.processes
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __str__(self):
-        str = "shape {} and process group {}".format(self.topology,
-                                                     self.processes)
-        return str
+        return f"shape {self.topology} and process group {self.processes}"

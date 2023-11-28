@@ -88,11 +88,7 @@ class Group():
         self.ranks = ranks
 
     def is_member(self):
-        if self.rank < 0:
-            return False
-        if self.nranks < 2:
-            return False
-        return True
+        return False if self.rank < 0 else self.nranks >= 2
 
     def get_group_rank(self, rank):
         if self.is_member() and rank in self.ranks:
@@ -101,8 +97,7 @@ class Group():
             return -1
 
     def __repr__(self):
-        debug_str = "rank: {}, nranks: {}, id: {}, ranks: ".format(
-            self.rank, self.nranks, self.id)
+        debug_str = f"rank: {self.rank}, nranks: {self.nranks}, id: {self.id}, ranks: "
         debug_str += ", ".join(map(str, self.ranks))
         debug_str += ". "
         return debug_str
@@ -486,12 +481,12 @@ def all_reduce(tensor, op=ReduceOp.SUM, group=None, use_calc_stream=True):
             return _C_ops.c_allreduce_prod_(tensor, 'use_calc_stream',
                                             use_calc_stream, 'ring_id', ring_id)
         else:
-            raise ValueError("Unknown parameter: {}.".format(op))
+            raise ValueError(f"Unknown parameter: {op}.")
 
     check_variable_and_dtype(
         tensor, 'tensor', ['float16', 'float32', 'float64', 'int32', 'int64'],
         'all_reduce')
-    if not op in [ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN, ReduceOp.PROD]:
+    if op not in [ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN, ReduceOp.PROD]:
         raise ValueError("The op for all_reduce must be one of educeOp.PROD, "
                          "ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN.")
     if op == ReduceOp.SUM:
@@ -584,13 +579,13 @@ def reduce(tensor, dst, op=ReduceOp.SUM, group=None, use_calc_stream=True):
                                         use_calc_stream, 'ring_id', ring_id,
                                         'root_id', gdst)
         else:
-            raise ValueError("Unknown parameter: {}.".format(op))
+            raise ValueError(f"Unknown parameter: {op}.")
 
     op_type = 'c_reduce'
     check_variable_and_dtype(
         tensor, 'tensor', ['float16', 'float32', 'float64', 'int32', 'int64'],
         'all_reduce')
-    if not op in [ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN, ReduceOp.PROD]:
+    if op not in [ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN, ReduceOp.PROD]:
         raise ValueError("The op for reduce must be one of educeOp.PROD, "
                          "ReduceOp.SUM, ReduceOp.MAX, ReduceOp.MIN.")
 
@@ -762,9 +757,7 @@ def scatter(tensor, tensor_list=None, src=0, group=None, use_calc_stream=True):
     nranks = _get_global_group().nranks if group is None else group.nranks
 
     if rank != gsrc:
-        tensor_list = []
-        for _ in range(nranks):
-            tensor_list.append(tensor)
+        tensor_list = [tensor for _ in range(nranks)]
     temp = paddle.concat(tensor_list, axis=0)
     if in_dygraph_mode():
         return _C_ops.c_scatter(temp, tensor, 'use_calc_stream',
@@ -938,7 +931,7 @@ def _mp_allreduce(tensor,
                 tensor, 'use_calc_stream', use_calc_stream, 'ring_id', ring_id,
                 "use_model_parallel", use_model_parallel)
         else:
-            raise ValueError("Unknown parameter: {}.".format(op))
+            raise ValueError(f"Unknown parameter: {op}.")
 
     op_type = 'c_allreduce_sum'
     helper = LayerHelper(op_type, **locals())
@@ -1019,14 +1012,11 @@ class _Linear(layers.Layer):
         self.name = name
 
     def forward(self, input):
-        out = _linear(
-            x=input, weight=self.weight, bias=self.bias, name=self.name)
-        return out
+        return _linear(x=input, weight=self.weight, bias=self.bias, name=self.name)
 
     def extra_repr(self):
-        name_str = ', name={}'.format(self.name) if self.name else ''
-        return 'in_features={}, out_features={}, dtype={}{}'.format(
-            self.weight.shape[0], self.weight.shape[1], self._dtype, name_str)
+        name_str = f', name={self.name}' if self.name else ''
+        return f'in_features={self.weight.shape[0]}, out_features={self.weight.shape[1]}, dtype={self._dtype}{name_str}'
 
 
 def _c_softmax_with_cross_entropy(logits,
@@ -1052,11 +1042,7 @@ def _c_softmax_with_cross_entropy(logits,
     if in_dygraph_mode():
         softmax, loss = _C_ops.c_softmax_with_cross_entropy(
             logits, label, 'ring_id', ring_id, 'rank', rank, 'nranks', nranks)
-        if not return_softmax:
-            return loss
-        else:
-            return loss, softmax
-
+        return loss if not return_softmax else (loss, softmax)
     attrs = {
         'ring_id': ring_id,
         'rank': rank,
@@ -1073,10 +1059,7 @@ def _c_softmax_with_cross_entropy(logits,
                  'Loss': loss},
         attrs=attrs)
 
-    if return_softmax:
-        return loss, softmax
-
-    return loss
+    return (loss, softmax) if return_softmax else loss
 
 
 def _linear(x, weight, bias=None, name=None):
@@ -1266,12 +1249,12 @@ def _parallel_embedding(x,
 
     output_parallel = paddle.distributed.collective._c_lookup_table(
         weight, x, start_index=vocab_start_index, name=name)
-    out = paddle.distributed.collective._mp_allreduce(
+    return paddle.distributed.collective._mp_allreduce(
         output_parallel,
         group=group,
         use_calc_stream=True,
-        use_model_parallel=True)
-    return out
+        use_model_parallel=True,
+    )
 
 
 def split(x,
@@ -1412,20 +1395,18 @@ def split(x,
         'linear',
         'embedding',
     ]
-    assert operation in supported_operations, (
-        "The operation for "
-        "paddle.distributed.split must be one of {}.".format(
-            supported_operations))
+    assert (
+        operation in supported_operations
+    ), f"The operation for paddle.distributed.split must be one of {supported_operations}."
     if in_dygraph_mode():
         raise ValueError(
             "paddle.distributed.split cannot be used in dynamic "
             "graph mode, plese use ParallelEmbedding, ParallelRowLinear, "
             "ParallelColumnLinear instead.")
-    else:
-        assert fleet._role_maker, ("To use paddle.distributed.split, "
-                                   "you must call fleet.init() firstly.")
-        rank = fleet.worker_index()
-        nranks = fleet.worker_num()
+    assert fleet._role_maker, ("To use paddle.distributed.split, "
+                               "you must call fleet.init() firstly.")
+    rank = fleet.worker_index()
+    nranks = fleet.worker_num()
 
     # rank within a model parallel group
     inner_rank = rank % num_partitions
@@ -1433,12 +1414,12 @@ def split(x,
     if operation == "embedding":
         assert axis == 0, ("We only support to split the weight of embedding "
                            "along the first axis now.")
-        assert size[0] % num_partitions == 0, \
-            "The length of the vocabulary must be divisible by num_partitions " \
-            "but received vocabulary={} num_partitions={}".format(size[0], num_partitions)
+        assert (
+            size[0] % num_partitions == 0
+        ), f"The length of the vocabulary must be divisible by num_partitions but received vocabulary={size[0]} num_partitions={num_partitions}"
 
         per_part_size = size[0] // num_partitions
-        emb_out = _parallel_embedding(
+        return _parallel_embedding(
             x,
             per_part_size,
             size,
@@ -1446,31 +1427,30 @@ def split(x,
             inner_rank,
             num_partitions,
             name,
-            group=None)
-        return emb_out
+            group=None,
+        )
     else:
         should_split = False
         if axis == 0:
-            assert size[0] % num_partitions == 0, (
-                "Number of rows of the weight for linear ({}) must be"
-                " divisible by num_partitions ({})".format(size[0],
-                                                           num_partitions))
+            assert (
+                size[0] % num_partitions == 0
+            ), f"Number of rows of the weight for linear ({size[0]}) must be divisible by num_partitions ({num_partitions})"
             per_part_size = size[0] // num_partitions
             linear_size = (per_part_size, size[1])
             if x.shape[-1] == size[0]: should_split = True
 
         elif axis == 1:
-            assert size[1] % num_partitions == 0, (
-                "Number of column of the weight for linear ({}) must be"
-                " divisible by num_partitions ({})".format(size[1],
-                                                           num_partitions))
+            assert (
+                size[1] % num_partitions == 0
+            ), f"Number of column of the weight for linear ({size[1]}) must be divisible by num_partitions ({num_partitions})"
             per_part_size = size[1] // num_partitions
             linear_size = (size[0], per_part_size)
         else:
-            raise ValueError("The value of axis must be 0 or 1, but the value "
-                             "given is {}.".format(axis))
+            raise ValueError(
+                f"The value of axis must be 0 or 1, but the value given is {axis}."
+            )
 
-        linear_out = _parallel_linear(
+        return _parallel_linear(
             x,
             linear_size[0],
             linear_size[1],
@@ -1482,8 +1462,8 @@ def split(x,
             num_partitions,
             should_split,
             name=name,
-            group=None)
-        return linear_out
+            group=None,
+        )
 
 
 def alltoall(in_tensor_list, out_tensor_list, group=None, use_calc_stream=True):

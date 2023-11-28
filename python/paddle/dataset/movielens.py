@@ -114,7 +114,7 @@ def __initialize_meta_info__():
                 title_word_set = set()
                 categories_set = set()
                 with package.open('ml-1m/movies.dat') as movie_file:
-                    for i, line in enumerate(movie_file):
+                    for line in movie_file:
                         line = cpt.to_text(line, encoding='latin')
                         movie_id, title, categories = line.strip().split('::')
                         categories = categories.split('|')
@@ -192,10 +192,7 @@ def get_movie_title_dict():
 
 
 def __max_index_info__(a, b):
-    if a.index > b.index:
-        return a
-    else:
-        return b
+    return a if a.index > b.index else b
 
 
 @deprecated(
@@ -225,10 +222,7 @@ def max_user_id():
 
 
 def __max_job_id_impl__(a, b):
-    if a.job_id > b.job_id:
-        return a
-    else:
-        return b
+    return a if a.job_id > b.job_id else b
 
 
 @deprecated(

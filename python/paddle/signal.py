@@ -310,8 +310,10 @@ def stft(x,
         'stft')
 
     x_rank = len(x.shape)
-    assert x_rank in [1, 2], \
-        f'x should be a 1D or 2D real tensor, but got rank of x is {x_rank}'
+    assert x_rank in {
+        1,
+        2,
+    }, f'x should be a 1D or 2D real tensor, but got rank of x is {x_rank}'
 
     if x_rank == 1:  # (batch, seq_length)
         x = x.unsqueeze(0)
@@ -345,8 +347,10 @@ def stft(x,
                                           mode='constant')
 
     if center:
-        assert pad_mode in ['constant', 'reflect'], \
-            'pad_mode should be "reflect" or "constant", but got "{}".'.format(pad_mode)
+        assert pad_mode in [
+            'constant',
+            'reflect',
+        ], f'pad_mode should be "reflect" or "constant", but got "{pad_mode}".'
 
         pad_length = n_fft // 2
         # FIXME: Input `x` can be a complex tensor but pad does not supprt complex input.
@@ -473,8 +477,10 @@ def istft(x,
     check_variable_and_dtype(x, 'x', ['complex64', 'complex128'], 'istft')
 
     x_rank = len(x.shape)
-    assert x_rank in [2, 3], \
-        'x should be a 2D or 3D complex tensor, but got rank of x is {}'.format(x_rank)
+    assert x_rank in {
+        2,
+        3,
+    }, f'x should be a 2D or 3D complex tensor, but got rank of x is {x_rank}'
 
     if x_rank == 2:  # (batch, n_fft, n_frames)
         x = x.unsqueeze(0)
@@ -486,25 +492,30 @@ def istft(x,
         win_length = n_fft
 
     # Assure no gaps between frames.
-    assert 0 < hop_length <= win_length, \
-        'hop_length should be in (0, win_length({})], but got {}.'.format(win_length, hop_length)
+    assert (
+        0 < hop_length <= win_length
+    ), f'hop_length should be in (0, win_length({win_length})], but got {hop_length}.'
 
-    assert 0 < win_length <= n_fft, \
-        'win_length should be in (0, n_fft({})], but got {}.'.format(n_fft, win_length)
+    assert (
+        0 < win_length <= n_fft
+    ), f'win_length should be in (0, n_fft({n_fft})], but got {win_length}.'
 
     n_frames = x.shape[-1]
     fft_size = x.shape[-2]
 
     if onesided:
-        assert (fft_size == n_fft // 2 + 1), \
-            'fft_size should be equal to n_fft // 2 + 1({}) when onesided is True, but got {}.'.format(n_fft // 2 + 1, fft_size)
+        assert (
+            fft_size == n_fft // 2 + 1
+        ), f'fft_size should be equal to n_fft // 2 + 1({n_fft // 2 + 1}) when onesided is True, but got {fft_size}.'
     else:
-        assert (fft_size == n_fft), \
-            'fft_size should be equal to n_fft({}) when onesided is False, but got {}.'.format(n_fft, fft_size)
+        assert (
+            fft_size == n_fft
+        ), f'fft_size should be equal to n_fft({n_fft}) when onesided is False, but got {fft_size}.'
 
     if window is not None:
-        assert len(window.shape) == 1 and len(window) == win_length, \
-            'expected a 1D window tensor of size equal to win_length({}), but got window with shape {}.'.format(win_length, window.shape)
+        assert (
+            len(window.shape) == 1 and len(window) == win_length
+        ), f'expected a 1D window tensor of size equal to win_length({win_length}), but got window with shape {window.shape}.'
     else:
         window = paddle.ones(shape=(win_length, ))
 
@@ -552,11 +563,7 @@ def istft(x,
             out = out[:, (n_fft // 2):-(n_fft // 2)]
             window_envelop = window_envelop[(n_fft // 2):-(n_fft // 2)]
     else:
-        if center:
-            start = n_fft // 2
-        else:
-            start = 0
-
+        start = n_fft // 2 if center else 0
         out = out[:, start:start + length]
         window_envelop = window_envelop[start:start + length]
 

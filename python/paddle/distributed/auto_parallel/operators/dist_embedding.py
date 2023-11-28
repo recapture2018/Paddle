@@ -61,26 +61,18 @@ class DistributedEmbeddingImpl(DistributedOperatorImpl):
         if is_dim_replicate(w_dims_mapping[-2]) or is_dim_shard(w_dims_mapping[
                 -1]):
             return False
-        # Other dimensions must be replicate except the batch dimension
-        for mapping in ids_dims_mapping[1:]:
-            if is_dim_shard(mapping):
-                return False
-        return True
+        return not any(is_dim_shard(mapping) for mapping in ids_dims_mapping[1:])
 
     def is_output_compatible(self, dist_op):
         op_desc = dist_op.serial_op.desc
         op_dist_attr = dist_op.dist_attr
         out_name = op_desc.output('Out')[0]
         out_dims_mapping = op_dist_attr.get_output_dims_mapping(out_name)
-        # Other dimensions must be replicate except the batch dimension
-        for mapping in out_dims_mapping[1:]:
-            if is_dim_shard(mapping):
-                return False
-        return True
+        return not any(is_dim_shard(mapping) for mapping in out_dims_mapping[1:])
 
     def is_auto_compatible(self, dist_op):
         if (not self.is_input_compatible(dist_op)) or \
-            (not self.is_output_compatible(dist_op)):
+                (not self.is_output_compatible(dist_op)):
             return False
 
         op_desc = dist_op.serial_op.desc
@@ -92,10 +84,7 @@ class DistributedEmbeddingImpl(DistributedOperatorImpl):
         ids_dims_mapping = op_dist_attr.get_input_dims_mapping(ids_name)
         w_dims_mapping = op_dist_attr.get_input_dims_mapping(w_name)
 
-        if ids_dims_mapping != out_dims_mapping[:len(ids_dims_mapping)]:
-            return False
-
-        return True
+        return ids_dims_mapping == out_dims_mapping[:len(ids_dims_mapping)]
 
     def update_dims_mapping(self, dist_op):
         changed = False
@@ -133,26 +122,24 @@ class DistributedEmbeddingImpl(DistributedOperatorImpl):
         src_op = dist_op_context.get_cur_src_op()
         rank_id = dist_op_context.get_rank_id()
         op_dist_attr = ctx.get_op_dist_attr_for_program(src_op)
-        assert op_dist_attr is not None, "backward op [{}] don't have dist attribute !".format(
-            str(src_op))
+        assert (
+            op_dist_attr is not None
+        ), f"backward op [{str(src_op)}] don't have dist attribute !"
 
         # check validation of inputs / outputs
-        assert 'Ids' in kwargs, "input [{}] is not given".format('Ids')
-        assert 'W' in kwargs, "input [{}] is not given".format('W')
-        assert 'Out' in kwargs, "output [{}] is not given".format('Out')
+        assert 'Ids' in kwargs, 'input [Ids] is not given'
+        assert 'W' in kwargs, 'input [W] is not given'
+        assert 'Out' in kwargs, 'output [Out] is not given'
 
-        assert len(
-            kwargs['Ids']
-        ) == 1, "row_parallel_embedding input Ids take 1 variable but got {}".format(
-            kwargs['Ids'])
-        assert len(
-            kwargs['W']
-        ) == 1, "row_parallel_embedding input W take 1 variable but got {}".format(
-            kwargs['W'])
-        assert len(
-            kwargs['Out']
-        ) == 1, "row_parallel_embedding output Out take 1 variable but got {}".format(
-            kwargs['Out'])
+        assert (
+            len(kwargs['Ids']) == 1
+        ), f"row_parallel_embedding input Ids take 1 variable but got {kwargs['Ids']}"
+        assert (
+            len(kwargs['W']) == 1
+        ), f"row_parallel_embedding input W take 1 variable but got {kwargs['W']}"
+        assert (
+            len(kwargs['Out']) == 1
+        ), f"row_parallel_embedding output Out take 1 variable but got {kwargs['Out']}"
 
         Ids_var = main_block.var(kwargs['Ids'][0])
         Weight_var = main_block.var(kwargs['W'][0])
@@ -161,8 +148,9 @@ class DistributedEmbeddingImpl(DistributedOperatorImpl):
         # got dist attribute info
         embedding_row_dim_mapping = op_dist_attr.get_input_dims_mapping(
             Weight_var.name)[0]
-        assert embedding_row_dim_mapping >= 0, "row_parallel_embedding's row should be divided by a specific mesh axis, but got [{}]".format(
-            embedding_row_dim_mapping)
+        assert (
+            embedding_row_dim_mapping >= 0
+        ), f"row_parallel_embedding's row should be divided by a specific mesh axis, but got [{embedding_row_dim_mapping}]"
         process_mesh_shape = op_dist_attr.process_mesh.topology
         process_mesh_group = op_dist_attr.process_mesh.processes
 
@@ -243,14 +231,12 @@ class DistributedEmbeddingImpl(DistributedOperatorImpl):
         embedding_op_dist_attr.impl_idx = op_dist_attr.impl_idx
         for input_varname in c_embedding_op.desc.input_arg_names():
             input_dist_attr = op_dist_attr.get_input_dist_attr(input_varname)
-            assert input_dist_attr is not None, "dist_attr is {}".format(
-                op_dist_attr)
+            assert input_dist_attr is not None, f"dist_attr is {op_dist_attr}"
             embedding_op_dist_attr.set_input_dist_attr(input_varname,
                                                        input_dist_attr)
         output_varname = c_embedding_op.desc.output_arg_names()[0]
         output_dist_attr = op_dist_attr.get_output_dist_attr(Out_var.name)
-        assert output_dist_attr is not None, "dist_attr is {}".format(
-            op_dist_attr)
+        assert output_dist_attr is not None, f"dist_attr is {op_dist_attr}"
         embedding_op_dist_attr.set_output_dist_attr(output_varname,
                                                     output_dist_attr)
         ctx.set_op_dist_attr_for_program(c_embedding_op, embedding_op_dist_attr)
@@ -268,8 +254,7 @@ class DistributedEmbeddingImpl(DistributedOperatorImpl):
                                                        tensor_dist_attr)
         for output_varname in c_allreduce_sum_op.desc.output_arg_names():
             output_dist_attr = op_dist_attr.get_output_dist_attr(output_varname)
-            assert output_dist_attr is not None, "dist_attr is {}".format(
-                op_dist_attr)
+            assert output_dist_attr is not None, f"dist_attr is {op_dist_attr}"
             allreduce_op_dist_attr.set_output_dist_attr(output_varname,
                                                         output_dist_attr)
         ctx.set_op_dist_attr_for_program(c_allreduce_sum_op,
@@ -286,9 +271,7 @@ class DistributedEmbeddingImpl(DistributedOperatorImpl):
 
             # NOTE all not splited axis should be presented in mesh
             for axis, size in enumerate(process_mesh.topology):
-                if size <= 1 or axis in dim_mapping:
-                    pass
-                else:
+                if size > 1 and axis not in dim_mapping:
                     group_ranks = _get_comm_group(process_mesh.processes,
                                                   process_mesh.topology, axis,
                                                   rank_id)

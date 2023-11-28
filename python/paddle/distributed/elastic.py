@@ -24,12 +24,12 @@ class Command(object):
         srv, port = server.split(':')
         self.etcd = etcd3.client(host=srv, port=port)
 
-        self.prefix = "/paddle/" + name
-        self.node_prefix = self.prefix + '/nodes'
-        self.np_path = self.prefix + '/np'
+        self.prefix = f"/paddle/{name}"
+        self.node_prefix = f'{self.prefix}/nodes'
+        self.np_path = f'{self.prefix}/np'
 
     def set_np(self, np):
-        self.etcd.put(self.np_path, six.b('{}'.format(np)))
+        self.etcd.put(self.np_path, six.b(f'{np}'))
 
     def scale_np(self, np):
         if self.etcd.get(self.np_path)[0] != None:
@@ -71,6 +71,6 @@ if __name__ == '__main__':
     if args.action == "clean":
         cmd.clean()
 
-    print("action {} done".format(args.action))
+    print(f"action {args.action} done")
 
     cmd.close()

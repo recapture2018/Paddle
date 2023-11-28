@@ -126,7 +126,7 @@ class TensorCostNode(CostNode):
                  batch_size=None,
                  shared_node_id=None):
         super(TensorCostNode, self).__init__(node, node_type, id)
-        if node.name == "create_py_reader_0" or node.name == "double_buffer_0":
+        if node.name in ["create_py_reader_0", "double_buffer_0"]:
             self.shape = [2, 2]
             self.dtype = paddle.float32
         else:
@@ -142,7 +142,7 @@ class TensorCostNode(CostNode):
         elif node.dtype == paddle.uint8:
             self.dtype_factor = 1
         else:
-            raise NotImplementedError("{} not counted".format(node.dtype))
+            raise NotImplementedError(f"{node.dtype} not counted")
         self.batch_size = None
         if batch_size is not None:
             self.batch_size = batch_size
@@ -166,10 +166,7 @@ class CompOpCostNode(CostNode):
     def init_comp_cost(self, cost_data):
         # TODO: improve fluid.CostModel for more specific cost_data
         op_id = self.node.desc.id()
-        if op_id in cost_data.keys():
-            self.cost = cost_data[op_id]
-        else:
-            self.cost = 0.0
+        self.cost = cost_data[op_id] if op_id in cost_data.keys() else 0.0
 
 
 class PipeEvent(object):
@@ -240,7 +237,7 @@ class CostModel(object):
             graph[var_id] = [[], []]
 
         for op in block.ops:
-            op_id = op.type + "_" + str(op.idx)
+            op_id = f"{op.type}_{str(op.idx)}"
             if op.type.startswith('c_') or op.type.startswith(
                     'send') or op.type.startswith('recv'):
                 is_bwd = False
@@ -308,7 +305,7 @@ class CostModel(object):
                         graph[node_id][PRED].remove(pred_id)
 
                         write_op_cnt += 1
-                        new_var_id = node_id + '_write_{}'.format(write_op_cnt)
+                        new_var_id = f'{node_id}_write_{write_op_cnt}'
                         new_var = TensorCostNode(
                             node.node,
                             CostNodeType.VARIABLE,
@@ -348,14 +345,12 @@ class CostModel(object):
         succ_ops_id = []
         for succ_id in self.origin_graph[sub_idx][node_id][SUCC]:
             succ = self.nodes[sub_idx][succ_id]
-            if succ.type == CostNodeType.COMMUNICATION or \
-                succ.type == CostNodeType.COMPUTATION:
+            if succ.type in [CostNodeType.COMMUNICATION, CostNodeType.COMPUTATION]:
                 succ_ops_id.append(succ_id)
             elif succ.type == CostNodeType.VARIABLE:
                 succ_ops_id = succ_ops_id + self._find_succ_op(succ_id, sub_idx)
             else:
-                raise NotImplementedError(
-                    'This type of node not supported yet:{}'.format(succ.type))
+                raise NotImplementedError(f'This type of node not supported yet:{succ.type}')
         return succ_ops_id
 
     def build_op_graph(self):
@@ -395,8 +390,6 @@ class CostModel(object):
                     peer_rank = node.node.attr('peer')
                     node.set_ranks([sub_idx, peer_rank])
                     node.init_comm_cost(self.cluster)
-                else:
-                    pass  # Not communication op
 
     def _merge_node(self, to_merge_node_list, merge_type='linear', nodes=None):
         nodes_list = []
@@ -412,9 +405,9 @@ class CostModel(object):
                 node_cost = max(node_cost, node.cost)
             else:
                 raise NotImplementedError(
-                    'This type of merging is not supported:{}'.format(
-                        merge_type))
-        merged_node_id = 'merged_' + str(len(nodes))
+                    f'This type of merging is not supported:{merge_type}'
+                )
+        merged_node_id = f'merged_{len(nodes)}'
         is_bwd = to_merge_node_list[0].is_bwd
         merged_node = MergedOpsCostNode(
             CostNodeType.MERGED,
@@ -466,7 +459,7 @@ class CostModel(object):
             if node_id not in runtime_graph.keys():
                 continue
             node = nodes[node_id]
-            if not is_bwd == node.is_bwd or node.is_optim:
+            if is_bwd != node.is_bwd or node.is_optim:
                 continue
             edges = runtime_graph[node_id]
             ind = len(edges[PRED])  # in_degree
@@ -533,7 +526,7 @@ class CostModel(object):
         rt_nodes_id = list(runtime_graph.keys())
         for node_id in rt_nodes_id:
             node = nodes[node_id]
-            if not is_bwd == node.is_bwd or node.is_optim:
+            if is_bwd != node.is_bwd or node.is_optim:
                 continue
             edges = runtime_graph[node_id]
             outd = len(edges[SUCC])  # out_degree
@@ -566,7 +559,7 @@ class CostModel(object):
                 for i in succ_nodes_id:
                     try:
                         if len(runtime_graph[i][SUCC]) != 1 or \
-                            runtime_graph[i][SUCC][0] != end_node_id:
+                                runtime_graph[i][SUCC][0] != end_node_id:
                             to_merge = False  # if branches has different end node, we don't merge them
                             break
                     except:
@@ -648,9 +641,8 @@ class CostModel(object):
                 top_mem = max(cur_mem, top_mem)
                 if q.empty():
                     break
-                else:
-                    q.put(node_id)
-                    continue
+                q.put(node_id)
+                continue
             else:
                 node = nodes[node_id]
             if node.type == CostNodeType.VARIABLE:
@@ -659,8 +651,7 @@ class CostModel(object):
                     static_mem += size
                 cur_mem += size
             edges = sim_graph[node_id]
-            if not (node.type == CostNodeType.VARIABLE and
-                    node.node.persistable):
+            if node.type != CostNodeType.VARIABLE or not node.node.persistable:
                 for succ_id in edges[SUCC]:
                     sim_graph[succ_id][PRED].remove(node_id)
                     if len(sim_graph[succ_id][PRED]) == 0:
@@ -689,7 +680,7 @@ class CostModel(object):
         bwd_cnt = [self.microbatch_num] * stage_num
         q = queue.Queue(1024)
 
-        for i in range(self.microbatch_num):
+        for _ in range(self.microbatch_num):
             q.put(PipeEvent(0, 'fwd', self.fwd_time[0]))
 
         while not q.empty():
@@ -746,8 +737,8 @@ class CostModel(object):
                 global_time[stid] = e.e_time
             else:
                 raise NotImplementedError(
-                    'This type of pipe event is not supported yet.{}'.format(
-                        e.name))
+                    f'This type of pipe event is not supported yet.{e.name}'
+                )
 
         for t in global_time:
             total_time = max(total_time, t)
@@ -797,5 +788,4 @@ def estimate_cost(distributed_program, cluster, pipeline_config,
         standalone_cost_data=standalone_cost_data,
         pipeline_config=pipeline_config)
     cm_ctx.init(distributed_program)
-    cost = cm_ctx.get_cost()
-    return cost
+    return cm_ctx.get_cost()

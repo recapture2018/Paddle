@@ -27,6 +27,7 @@ images per class.
 
 """
 
+
 from __future__ import print_function
 
 import itertools
@@ -40,9 +41,9 @@ from six.moves import cPickle as pickle
 __all__ = []
 
 URL_PREFIX = 'https://dataset.bj.bcebos.com/cifar/'
-CIFAR10_URL = URL_PREFIX + 'cifar-10-python.tar.gz'
+CIFAR10_URL = f'{URL_PREFIX}cifar-10-python.tar.gz'
 CIFAR10_MD5 = 'c58f30108f718f92721af3b95e74349a'
-CIFAR100_URL = URL_PREFIX + 'cifar-100-python.tar.gz'
+CIFAR100_URL = f'{URL_PREFIX}cifar-100-python.tar.gz'
 CIFAR100_MD5 = 'eb9058c3a382ffc7106e4002c42a8d85'
 
 
@@ -63,9 +64,7 @@ def reader_creator(filename, sub_name, cycle=False):
 
                 for name in names:
                     batch = pickle.load(f.extractfile(name), encoding='bytes')
-                    for item in read_batch(batch):
-                        yield item
-
+                    yield from read_batch(batch)
             if not cycle:
                 break
 

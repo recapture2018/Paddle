@@ -59,29 +59,26 @@ def to_text(obj, encoding='utf-8', inplace=False):
         return obj
 
     if isinstance(obj, list):
-        if inplace:
-            for i in six.moves.xrange(len(obj)):
-                obj[i] = _to_text(obj[i], encoding)
-            return obj
-        else:
+        if not inplace:
             return [_to_text(item, encoding) for item in obj]
+        for i in six.moves.xrange(len(obj)):
+            obj[i] = _to_text(obj[i], encoding)
+        return obj
     elif isinstance(obj, set):
-        if inplace:
-            for item in obj:
-                obj.remove(item)
-                obj.add(_to_text(item, encoding))
-            return obj
-        else:
-            return set([_to_text(item, encoding) for item in obj])
+        if not inplace:
+            return {_to_text(item, encoding) for item in obj}
+        for item in obj:
+            obj.remove(item)
+            obj.add(_to_text(item, encoding))
+        return obj
     elif isinstance(obj, dict):
+        new_obj = {}
         if inplace:
-            new_obj = {}
             for key, value in six.iteritems(obj):
                 new_obj[_to_text(key, encoding)] = _to_text(value, encoding)
             obj.update(new_obj)
             return obj
         else:
-            new_obj = {}
             for key, value in six.iteritems(obj):
                 new_obj[_to_text(key, encoding)] = _to_text(value, encoding)
             return new_obj
@@ -110,9 +107,7 @@ def _to_text(obj, encoding):
 
     if isinstance(obj, six.binary_type):
         return obj.decode(encoding)
-    elif isinstance(obj, six.text_type):
-        return obj
-    elif isinstance(obj, (bool, float)):
+    elif isinstance(obj, (six.text_type, bool, float)):
         return obj
     else:
         return six.u(obj)
@@ -156,20 +151,18 @@ def to_bytes(obj, encoding='utf-8', inplace=False):
         return obj
 
     if isinstance(obj, list):
-        if inplace:
-            for i in six.moves.xrange(len(obj)):
-                obj[i] = _to_bytes(obj[i], encoding)
-            return obj
-        else:
+        if not inplace:
             return [_to_bytes(item, encoding) for item in obj]
+        for i in six.moves.xrange(len(obj)):
+            obj[i] = _to_bytes(obj[i], encoding)
+        return obj
     elif isinstance(obj, set):
-        if inplace:
-            for item in obj:
-                obj.remove(item)
-                obj.add(_to_bytes(item, encoding))
-            return obj
-        else:
-            return set([_to_bytes(item, encoding) for item in obj])
+        if not inplace:
+            return {_to_bytes(item, encoding) for item in obj}
+        for item in obj:
+            obj.remove(item)
+            obj.add(_to_bytes(item, encoding))
+        return obj
     else:
         return _to_bytes(obj, encoding)
 

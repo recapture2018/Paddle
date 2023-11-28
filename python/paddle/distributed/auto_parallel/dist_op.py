@@ -75,11 +75,10 @@ class DistributedOperator:
             self._serial_inputs[tensor_name] = tensor
             if tensor is None:
                 tensor_shape = []
+            elif tensor.type == core.VarDesc.VarType.READER:
+                tensor_shape = []
             else:
-                if tensor.type == core.VarDesc.VarType.READER:
-                    tensor_shape = []
-                else:
-                    tensor_shape = tensor.shape
+                tensor_shape = tensor.shape
             if self._dist_attr.get_input_dims_mapping(tensor_name) is None:
                 tensor_dims_mapping = [-1 for _ in range(len(tensor_shape))]
                 self._dist_attr.set_input_dims_mapping(tensor_name,
@@ -111,7 +110,7 @@ class DistributedOperator:
             for key, value in dist_attr.items():
                 if isinstance(key, Variable):
                     if key.name in self._serial_op.input_arg_names \
-                        or key.name in self._serial_op.output_arg_names:
+                            or key.name in self._serial_op.output_arg_names:
                         new_dist_attr[key] = value
                 else:
                     new_dist_attr[key] = value
@@ -120,17 +119,15 @@ class DistributedOperator:
             new_dist_attr._inputs_dist_attrs.clear()
             new_dist_attr._outputs_dist_attrs.clear()
             for tensor_name in self._serial_op.input_arg_names:
-                tensor_dist_attr = dist_attr.get_input_dist_attr(tensor_name)
-                if tensor_dist_attr:
+                if tensor_dist_attr := dist_attr.get_input_dist_attr(tensor_name):
                     new_dist_attr.set_input_dist_attr(tensor_name,
                                                       tensor_dist_attr)
             for tensor_name in self._serial_op.output_arg_names:
-                tensor_dist_attr = dist_attr.get_output_dist_attr(tensor_name)
-                if tensor_dist_attr:
+                if tensor_dist_attr := dist_attr.get_output_dist_attr(tensor_name):
                     new_dist_attr.set_output_dist_attr(tensor_name,
                                                        tensor_dist_attr)
         else:
-            assert False, "Cannot recognize the {} parameter.".format(dist_attr)
+            assert False, f"Cannot recognize the {dist_attr} parameter."
         return new_dist_attr
 
     def validate_dist_attr(self):
@@ -170,8 +167,7 @@ class DistributedOperator:
         return True
 
     def __str__(self):
-        str = "{{op type: {}, op id: {}".format(self.serial_op.desc.type(),
-                                                self.serial_op.desc.id())
+        str = f"{{op type: {self.serial_op.desc.type()}, op id: {self.serial_op.desc.id()}"
 
         # str += ", {}".format(self.dist_attr)
         # return str
@@ -180,8 +176,7 @@ class DistributedOperator:
             annotated_str = "annotated"
         else:
             annotated_str = "non-annotated"
-        str += ", process_mesh ({}): {}".format(annotated_str,
-                                                self.dist_attr.process_mesh)
+        str += f", process_mesh ({annotated_str}): {self.dist_attr.process_mesh}"
 
         for arg_name in self.serial_op.desc.input_arg_names():
             dims_mapping = self.dist_attr.get_input_dims_mapping(arg_name)
@@ -196,8 +191,7 @@ class DistributedOperator:
                     is_parameter_str = "non-parameter"
             else:
                 is_parameter_str = "non-parameter"
-            str += ", {}'s dims_mapping (input, {}, {}): {}".format(
-                arg_name, annotated_str, is_parameter_str, dims_mapping)
+            str += f", {arg_name}'s dims_mapping (input, {annotated_str}, {is_parameter_str}): {dims_mapping}"
 
         for arg_name in self.serial_op.desc.output_arg_names():
             dims_mapping = self.dist_attr.get_output_dims_mapping(arg_name)
@@ -212,13 +206,11 @@ class DistributedOperator:
                     is_parameter_str = "non-parameter"
             else:
                 is_parameter_str = "non-parameter"
-            str += ", {}'s dims_mapping (output, {}, {}): {}".format(
-                arg_name, annotated_str, is_parameter_str, dims_mapping)
+            str += f", {arg_name}'s dims_mapping (output, {annotated_str}, {is_parameter_str}): {dims_mapping}"
 
-        str += ", pipeline stage: {}".format(None)
+        str += f", pipeline stage: {None}"
 
-        str += ", dist_impl idx: {} , dist_impl type {} }}".format(
-            self.dist_attr._impl_idx, self.dist_attr._impl_type)
+        str += f", dist_impl idx: {self.dist_attr._impl_idx} , dist_impl type {self.dist_attr._impl_type} }}"
 
         return str
 
@@ -227,7 +219,7 @@ class DistributedOperator:
         result = cls.__new__(cls)
         memo[id(self)] = result
         for k, v in self.__dict__.items():
-            if k == "_serial_op" or k == "_serial_inputs" or k == "_serial_outputs":
+            if k in ["_serial_op", "_serial_inputs", "_serial_outputs"]:
                 setattr(result, k, v)
             else:
                 setattr(result, k, copy.deepcopy(v, memo))

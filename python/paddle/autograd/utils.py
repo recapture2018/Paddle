@@ -17,15 +17,14 @@ import paddle
 
 def _tensors(ts, name):
     if isinstance(ts, (list, tuple)):
-        assert len(ts) > 0, "{} connot be empty".format(name)
+        assert len(ts) > 0, f"{name} connot be empty"
         for each_t in ts:
-            assert isinstance(
-                each_t, paddle.Tensor
-            ) or each_t is None, "Elements of {} must be paddle.Tensor or None".format(
-                name)
+            assert (
+                isinstance(each_t, paddle.Tensor) or each_t is None
+            ), f"Elements of {name} must be paddle.Tensor or None"
         return list(ts)
     else:
-        assert isinstance(ts, paddle.Tensor), "{} must be Tensor".format(name)
+        assert isinstance(ts, paddle.Tensor), f"{name} must be Tensor"
         return [ts]
 
 
@@ -37,9 +36,8 @@ def _stack_tensor_or_return_none(origin_list):
 
 
 def _replace_none_with_zero_tensor(t, spec_t):
-    if t is None:
-        zero_t = paddle.zeros(shape=spec_t.shape, dtype=spec_t.dtype)
-        zero_t.stop_gradient = spec_t.stop_gradient
-        return zero_t
-    else:
+    if t is not None:
         return t
+    zero_t = paddle.zeros(shape=spec_t.shape, dtype=spec_t.dtype)
+    zero_t.stop_gradient = spec_t.stop_gradient
+    return zero_t

@@ -44,7 +44,6 @@ def must_mkdirs(path):
     except OSError as exc:
         if exc.errno != errno.EEXIST:
             raise
-        pass
 
 
 must_mkdirs(DATA_HOME)
@@ -52,10 +51,9 @@ must_mkdirs(DATA_HOME)
 
 def md5file(fname):
     hash_md5 = hashlib.md5()
-    f = open(fname, "rb")
-    for chunk in iter(lambda: f.read(4096), b""):
-        hash_md5.update(chunk)
-    f.close()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
 
@@ -73,7 +71,7 @@ def download(url, module_name, md5sum, save_name=None):
 
     retry = 0
     retry_limit = 3
-    while not (os.path.exists(filename) and md5file(filename) == md5sum):
+    while not os.path.exists(filename) or md5file(filename) != md5sum:
         if os.path.exists(filename):
             sys.stderr.write("file %s  md5 %s\n" % (md5file(filename), md5sum))
         if retry < retry_limit:
@@ -97,12 +95,10 @@ def download(url, module_name, md5sum, save_name=None):
                     total_length = int(total_length)
                     total_iter = total_length / chunk_size + 1
                     log_interval = total_iter // 20 if total_iter > 20 else 1
-                    log_index = 0
                     bar = paddle.hapi.progressbar.ProgressBar(
                         total_iter, name='item')
-                    for data in r.iter_content(chunk_size=chunk_size):
+                    for log_index, data in enumerate(r.iter_content(chunk_size=chunk_size), start=1):
                         f.write(data)
-                        log_index += 1
                         bar.update(log_index, {})
                         if log_index % log_interval == 0:
                             bar.update(log_index)
@@ -120,10 +116,9 @@ def fetch_all():
             x for x in dir(paddle.dataset) if not x.startswith("__")
     ]:
         if "fetch" in dir(
-                importlib.import_module("paddle.dataset.%s" % module_name)):
-            getattr(
-                importlib.import_module("paddle.dataset.%s" % module_name),
-                "fetch")()
+            importlib.import_module(f"paddle.dataset.{module_name}")
+        ):
+            getattr(importlib.import_module(f"paddle.dataset.{module_name}"), "fetch")()
 
 
 def split(reader, line_count, suffix="%05d.pickle", dumper=pickle.dump):
@@ -188,13 +183,11 @@ def cluster_files_reader(files_pattern,
         my_file_list = []
         for idx, fn in enumerate(file_list):
             if idx % trainer_count == trainer_id:
-                print("append file: %s" % fn)
+                print(f"append file: {fn}")
                 my_file_list.append(fn)
         for fn in my_file_list:
             with open(fn, "r") as f:
-                lines = loader(f)
-                for line in lines:
-                    yield line
+                yield from loader(f)
 
     return reader
 
@@ -206,5 +199,4 @@ def _check_exists_and_download(path, url, md5, module_name, download=True):
     if download:
         return paddle.dataset.common.download(url, module_name, md5)
     else:
-        raise ValueError('{} not exists and auto download disabled'.format(
-            path))
+        raise ValueError(f'{path} not exists and auto download disabled')

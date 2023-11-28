@@ -49,9 +49,10 @@ if __name__ == "__main__":
     # Empty files
     dygraph_forward_api_h_path = os.path.join(generated_dir,
                                               "dygraph_forward_api.h")
-    empty_files = [dygraph_forward_api_h_path]
-    empty_files.append(
-        os.path.join(forwards_dir, "dygraph_forward_functions.cc"))
+    empty_files = [
+        dygraph_forward_api_h_path,
+        os.path.join(forwards_dir, "dygraph_forward_functions.cc"),
+    ]
     empty_files.append(os.path.join(nodes_dir, "nodes.cc"))
     empty_files.append(os.path.join(nodes_dir, "nodes.h"))
 

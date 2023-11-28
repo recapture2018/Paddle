@@ -43,25 +43,25 @@ class DistributedTensor:
         if not (isinstance(sizes, (list, tuple)) and
                 all(map(lambda x: isinstance(x, int) and x > 0, sizes))):
             raise ValueError(
-                "The sizes must be list or tuple and item in sizes must be non-negative integer, but got {}".
-                format(sizes))
+                f"The sizes must be list or tuple and item in sizes must be non-negative integer, but got {sizes}"
+            )
         if not (isinstance(dims_mapping, (list, tuple)) and all(
                 map(lambda x: isinstance(x, int) and x >= -1, dims_mapping))):
             raise ValueError(
-                "The dims_mapping must be list or tuple and item in dims_mapping must >= -1, but got {}".
-                format(dims_mapping))
+                f"The dims_mapping must be list or tuple and item in dims_mapping must >= -1, but got {dims_mapping}"
+            )
         if not (isinstance(processes, (list, tuple)) and
                 all(map(lambda x: isinstance(x, int) and x >= 0, processes))):
             raise ValueError(
-                "The processes must be list or tuple and item in processes must be integer, but got {}".
-                format(processes))
+                f"The processes must be list or tuple and item in processes must be integer, but got {processes}"
+            )
         if not (isinstance(topology, (list, tuple)) and
                 all(map(lambda x: isinstance(x, int) and x > 0, topology))):
             raise ValueError(
-                "The topology must be list or tuple and item in topology must be non-negative integer, but got {}".
-                format(topology))
+                f"The topology must be list or tuple and item in topology must be non-negative integer, but got {topology}"
+            )
         if rank is not None and not (isinstance(rank, int) and rank >= 0):
-            raise ValueError("The rank must >= 0, but got {}".format(rank))
+            raise ValueError(f"The rank must >= 0, but got {rank}")
 
         # NOTE: Only support even sharding now
         if shard_sizes is not None:
@@ -138,13 +138,11 @@ class DistributedTensor:
             global_sizes, dims_mapping, topology, processes, rank, shard_sizes)
         assert len(local_sizes) == len(
             local_offsets
-        ), "The length of local_sizes must be equal to local_offsets, but got {} and {}.".format(
-            len(local_sizes), len(local_offsets))
+        ), f"The length of local_sizes must be equal to local_offsets, but got {len(local_sizes)} and {len(local_offsets)}."
 
         local_end_offsets = list(
             map(lambda x: x[0] + x[1], zip(local_offsets, local_sizes)))
-        local_shard = list(zip(local_offsets, local_end_offsets))
-        return local_shard
+        return list(zip(local_offsets, local_end_offsets))
 
     def __init__(self, serial_tensor, dist_attr=None, dist_context=None):
         self._serial_tensor = serial_tensor
@@ -202,10 +200,10 @@ class DistributedTensor:
                     i] < -1 or self.dist_attr.dims_mapping[i] >= len(
                         self.dist_attr.process_mesh.topology):
                 return False
-        for i in range(len(self.dist_attr.process_mesh.topology)):
-            if self.dist_attr.dims_mapping.count(i) > 1:
-                return False
-        return True
+        return all(
+            self.dist_attr.dims_mapping.count(i) <= 1
+            for i in range(len(self.dist_attr.process_mesh.topology))
+        )
 
     def local_sizes(self, rank=None):
         rank = paddle.distributed.get_rank() if rank is None else rank
@@ -341,8 +339,9 @@ class DistributedTensor:
 
     def local_tensor(self, rank=None):
         rank = paddle.distributed.get_rank() if rank is None else rank
-        assert rank in self._local_tensor_map, "The rank {} local tensor has not been created.".format(
-            rank)
+        assert (
+            rank in self._local_tensor_map
+        ), f"The rank {rank} local tensor has not been created."
         return self._local_tensor_map[rank]
 
     def __deepcopy__(self, memo):
@@ -350,15 +349,14 @@ class DistributedTensor:
         result = cls.__new__(cls)
         memo[id(self)] = result
         for k, v in self.__dict__.items():
-            if k == "_serial_tensor" or k == "_local_tensor_map":
+            if k in ["_serial_tensor", "_local_tensor_map"]:
                 setattr(result, k, v)
             else:
                 setattr(result, k, copy.deepcopy(v, memo))
         return result
 
     def __str__(self):
-        str = "{{tensor name: {}, tensor id: {}".format(
-            self.serial_tensor.desc.name(), self.serial_tensor.desc.id())
+        str = f"{{tensor name: {self.serial_tensor.desc.name()}, tensor id: {self.serial_tensor.desc.id()}"
 
         # str += ", {}".format(self.dist_attr)
         # return str
@@ -367,27 +365,25 @@ class DistributedTensor:
             annotated_str = "annotated"
         else:
             annotated_str = "non-annotated"
-        str += ", process_mesh ({}): {}".format(annotated_str,
-                                                self.dist_attr.process_mesh)
+        str += f", process_mesh ({annotated_str}): {self.dist_attr.process_mesh}"
 
-        str += ", is_parameter: {}".format(self.serial_tensor.is_parameter)
+        str += f", is_parameter: {self.serial_tensor.is_parameter}"
 
         if self.dist_attr.is_annotated("dims_mapping"):
             annotated_str = "annotated"
         else:
             annotated_str = "non-annotated"
-        str += ", dims_mapping ({}): {}".format(annotated_str,
-                                                self.dist_attr.dims_mapping)
+        str += f", dims_mapping ({annotated_str}): {self.dist_attr.dims_mapping}"
 
         if self.dist_attr.is_annotated("shard_mask"):
             annotated_str = "annotated"
         else:
             annotated_str = "non-annotated"
-        str += ", shard_mask ({}): {}".format(annotated_str, None)
+        str += f", shard_mask ({annotated_str}): None"
 
         if self.dist_attr.is_annotated("offload_device"):
             annotated_str = "annotated"
         else:
             annotated_str = "non-annotated"
-        str += ", offload_device ({}): {} }}".format(annotated_str, None)
+        str += f", offload_device ({annotated_str}): None }}"
         return str

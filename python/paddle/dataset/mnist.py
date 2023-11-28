@@ -18,6 +18,7 @@ This module will download dataset from http://yann.lecun.com/exdb/mnist/ and
 parse training set and test set into paddle reader creators.
 """
 
+
 from __future__ import print_function
 
 import paddle.dataset.common
@@ -30,13 +31,13 @@ from six.moves import range
 __all__ = []
 
 URL_PREFIX = 'https://dataset.bj.bcebos.com/mnist/'
-TEST_IMAGE_URL = URL_PREFIX + 't10k-images-idx3-ubyte.gz'
+TEST_IMAGE_URL = f'{URL_PREFIX}t10k-images-idx3-ubyte.gz'
 TEST_IMAGE_MD5 = '9fb629c4189551a2d022fa330f9573f3'
-TEST_LABEL_URL = URL_PREFIX + 't10k-labels-idx1-ubyte.gz'
+TEST_LABEL_URL = f'{URL_PREFIX}t10k-labels-idx1-ubyte.gz'
 TEST_LABEL_MD5 = 'ec29112dd5afa0611ce80d1b7f02629c'
-TRAIN_IMAGE_URL = URL_PREFIX + 'train-images-idx3-ubyte.gz'
+TRAIN_IMAGE_URL = f'{URL_PREFIX}train-images-idx3-ubyte.gz'
 TRAIN_IMAGE_MD5 = 'f68b3c2dcbeaaa9fbdd348bbdeb94873'
-TRAIN_LABEL_URL = URL_PREFIX + 'train-labels-idx1-ubyte.gz'
+TRAIN_LABEL_URL = f'{URL_PREFIX}train-labels-idx1-ubyte.gz'
 TRAIN_LABEL_MD5 = 'd53e105ee54ea40749a09fcbcd1e9432'
 
 
@@ -68,12 +69,12 @@ def reader_creator(image_filename, label_filename, buffer_size):
                 while True:
                     if step_label >= label_num:
                         break
-                    fmt_label = '>' + str(buffer_size) + 'B'
+                    fmt_label = f'>{str(buffer_size)}B'
                     labels = struct.unpack_from(fmt_label, lab_buf, offset_lab)
                     offset_lab += struct.calcsize(fmt_label)
                     step_label += buffer_size
 
-                    fmt_images = '>' + str(buffer_size * rows * cols) + 'B'
+                    fmt_images = f'>{str(buffer_size * rows * cols)}B'
                     images_temp = struct.unpack_from(fmt_images, img_buf,
                                                      offset_img)
                     images = numpy.reshape(images_temp, (

@@ -99,8 +99,7 @@ class ProcessGroup:
         if global_rank in self.ranks:
             return self.ranks.index(global_rank)
         else:
-            assert False, \
-                "Rank {} doesn't belong to this group".format(global_rank)
+            assert False, f"Rank {global_rank} doesn't belong to this group"
 
     def is_instantiate(self):
         return self._is_instantiate
@@ -150,12 +149,9 @@ class ProcessGroup:
     #     return not self.__eq__(other)
 
     def __str__(self):
-        string = "id: {}, nranks: {}, ranks: {}.".format(
-            self.id, self.nranks, ", ".join(map(str, self.ranks)))
-        return string
+        return f'id: {self.id}, nranks: {self.nranks}, ranks: {", ".join(map(str, self.ranks))}.'
 
 
 # Note that Process group 0 is reserved for representing all ranks.
 # At the begining, group 0 is empty and new ranks will be added automatically. 
-_g_process_group_map = {}
-_g_process_group_map[0] = ProcessGroup(0, [])
+_g_process_group_map = {0: ProcessGroup(0, [])}

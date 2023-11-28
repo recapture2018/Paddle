@@ -58,14 +58,12 @@ def _start_kv_server(port, http_server_d, size):
 
 def _is_cpuonly(backend):
     check_backend(backend)
-    if backend in ['auto', 'nccl', 'bkcl', 'hccl', 'heter'] and (
-            core.is_compiled_with_cuda() or core.is_compiled_with_xpu() or
-            core.is_compiled_with_npu()):
-
-        # passes 'auto' and can use cuda or xpu, use the default logics. so return False
-        return False
-    else:
-        return True
+    return (
+        backend not in ['auto', 'nccl', 'bkcl', 'hccl', 'heter']
+        or not core.is_compiled_with_cuda()
+        and not core.is_compiled_with_xpu()
+        and not core.is_compiled_with_npu()
+    )
 
 
 def _check_var_exists(var_name):
@@ -156,19 +154,20 @@ def init_parallel_env():
         raise NotImplementedError(
             "If you want to use CPU-only version, please use 'gloo' as backend")
 
-    if not is_cpu_only and core.is_compiled_with_cuda():
-        _check_var_exists("FLAGS_selected_gpus")
-    elif not is_cpu_only and core.is_compiled_with_xpu():
-        _check_var_exists('FLAGS_selected_xpus')
-    elif not is_cpu_only and core.is_compiled_with_npu():
-        _check_var_exists('FLAGS_selected_npus')
+    if not is_cpu_only:
+        if core.is_compiled_with_cuda():
+            _check_var_exists("FLAGS_selected_gpus")
+        elif core.is_compiled_with_xpu():
+            _check_var_exists('FLAGS_selected_xpus')
+        elif core.is_compiled_with_npu():
+            _check_var_exists('FLAGS_selected_npus')
 
     _check_var_exists("PADDLE_TRAINER_ID")
     _check_var_exists("PADDLE_CURRENT_ENDPOINT")
     _check_var_exists("PADDLE_TRAINERS_NUM")
     _check_var_exists("PADDLE_TRAINER_ENDPOINTS")
 
-    node_num = set([i.split(":")[0] for i in parallel_env.trainer_endpoints])
+    node_num = {i.split(":")[0] for i in parallel_env.trainer_endpoints}
     # 3: init gloo context (step 1: httpsever start)
     init_gloo = int(os.getenv("PADDLE_WITH_GLOO", "0"))
     if is_cpu_only or init_gloo or backend == "heter":

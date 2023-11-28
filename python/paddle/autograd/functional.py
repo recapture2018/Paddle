@@ -43,7 +43,7 @@ def gradient_scope(*var_lists, create_graph=False, allow_unused=False):
                 out = out.detach()
             return out
         if isinstance(out, list):
-            return list(return_fn(x) for x in out)
+            return [return_fn(x) for x in out]
         elif isinstance(out, tuple):
             return tuple(return_fn(x) for x in out)
         else:
@@ -77,8 +77,7 @@ def gradient_scope(*var_lists, create_graph=False, allow_unused=False):
 
     try:
         var_lists = [process(vl) for vl in var_lists]
-        bundle = var_lists + [grad_fn, return_fn]
-        yield bundle
+        yield var_lists + [grad_fn, return_fn]
     finally:
         pass
 
@@ -360,8 +359,8 @@ def jacobian(func, inputs, create_graph=False, allow_unused=False):
     fout_size = len(outputs)
     flat_outputs = tuple(reshape(output, shape=[-1]) for output in outputs)
     jacobian = tuple()
-    for i, flat_output in enumerate(flat_outputs):
-        jac_i = list([] for _ in range(fin_size))
+    for flat_output in flat_outputs:
+        jac_i = [[] for _ in range(fin_size)]
         for k in range(len(flat_output)):
             row_k = grad(
                 flat_output[k],
@@ -378,9 +377,9 @@ def jacobian(func, inputs, create_graph=False, allow_unused=False):
             _stack_tensor_or_return_none(jac_i_j) for jac_i_j in jac_i), )
     if fin_size == 1 and fout_size == 1:
         return jacobian[0][0]
-    elif fin_size == 1 and fout_size != 1:
+    elif fin_size == 1:
         return tuple(jacobian[i][0] for i in range(fout_size))
-    elif fin_size != 1 and fout_size == 1:
+    elif fout_size == 1:
         return jacobian[0]
     else:
         return jacobian
@@ -506,8 +505,8 @@ def batch_jacobian(func, inputs, create_graph=False, allow_unused=False):
         reshape(
             output, shape=[batch_size, -1]) for output in outputs)
     jacobian = tuple()
-    for i, flat_output in enumerate(flat_outputs):
-        jac_i = list([] for _ in range(fin_size))
+    for flat_output in flat_outputs:
+        jac_i = [[] for _ in range(fin_size)]
         for k in range(flat_output.shape[1]):
             row_k = grad(
                 flat_output[:, k],
@@ -524,9 +523,9 @@ def batch_jacobian(func, inputs, create_graph=False, allow_unused=False):
             _stack_tensor_or_return_none(jac_i_j) for jac_i_j in jac_i), )
     if fin_size == 1 and fout_size == 1:
         return jacobian[0][0]
-    elif fin_size == 1 and fout_size != 1:
+    elif fin_size == 1:
         return tuple(jacobian[i][0] for i in range(fout_size))
-    elif fin_size != 1 and fout_size == 1:
+    elif fout_size == 1:
         return jacobian[0]
     else:
         return jacobian
@@ -990,16 +989,8 @@ class Jacobian(object):
         return (self.ydim, self.xdim)
 
     def __getitem__(self, tup):
-        if hasattr(tup, '__iter__'):
-            i, j = tup
-        else:
-            i, j = tup, None
-
-        if isinstance(i, slice):
-            slicing = True
-        else:
-            slicing = False
-
+        i, j = tup if hasattr(tup, '__iter__') else (tup, None)
+        slicing = isinstance(i, slice)
         if slicing:
             if 'full' not in self.jacobian:
                 rows = [
@@ -1020,7 +1011,4 @@ class Jacobian(object):
                 self.jacobian[i] = self.flatten_all(
                     gradients(self.y[..., i], self.xs))
 
-        if j is None:
-            return JJ[i]
-        else:
-            return JJ[i][..., j]
+        return JJ[i] if j is None else JJ[i][..., j]

@@ -37,7 +37,7 @@ class CostModel():
             loss = paddle.mean(hidden)
             paddle.optimizer.SGD(learning_rate=0.01).minimize(loss)
 
-        print("main program is: {}".format(main_program))
+        print(f"main program is: {main_program}")
 
         return startup_program, main_program
 
@@ -69,7 +69,7 @@ class CostModel():
 
     def get_static_op_time(self, op_name, forward=True, dtype="float32"):
         # if forward is True, return op forward time, otherwise return op backward time.
-        if op_name == None:
+        if op_name is None:
             raise ValueError(
                 'op_name should not be empty when you want to get static op time'
             )

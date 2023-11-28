@@ -123,11 +123,7 @@ class Device:
         self._memory = value
 
     def __str__(self):
-        str = ""
-        str += "global_id: {}, local_id: {}, machine_id: {}, type: {}, model: {}, dp_flops: {}, sp_flops: {}, memory: {}".format(
-            self.global_id, self.local_id, self.machine.id, self.type.name,
-            self.model, self.dp_gflops, self.sp_gflops, self.memory)
-        return str
+        return f"global_id: {self.global_id}, local_id: {self.local_id}, machine_id: {self.machine.id}, type: {self.type.name}, model: {self.model}, dp_flops: {self.dp_gflops}, sp_flops: {self.sp_gflops}, memory: {self.memory}"
 
     def __repr__(self):
         return self.__str__()
@@ -184,11 +180,7 @@ class Link:
         self._latency = value
 
     def __str__(self):
-        str = ""
-        str += "source_global_id: {}, target_global_id: {}, type: {}, bandwidth: {}, latency: {}".format(
-            self.source.global_id, self.target.global_id, self.type,
-            self.bandwidth, self.latency)
-        return str
+        return f"source_global_id: {self.source.global_id}, target_global_id: {self.target.global_id}, type: {self.type}, bandwidth: {self.bandwidth}, latency: {self.latency}"
 
     def __repr__(self):
         return self.__str__()
@@ -252,11 +244,9 @@ class Machine:
         self._links[(link.source.global_id, link.target.global_id)] = link
 
     def __str__(self):
-        str = ""
-        for device in self.devices.values():
-            str += ", device: {}".format(device)
+        str = "".join(f", device: {device}" for device in self.devices.values())
         for link in self.links.values():
-            str += ", link: {}".format(link)
+            str += f", link: {link}"
         return str
 
     def __repr__(self):
@@ -337,10 +327,7 @@ class Cluster:
                 target = self.get_device(target_global_id)
                 link = Link(source, target)
                 link_type = link_info.get("type", None)
-                if link_type is not None:
-                    link_type = LinkType[link_type]
-                else:
-                    link_type = LinkType.UNKNOWN
+                link_type = LinkType[link_type] if link_type is not None else LinkType.UNKNOWN
                 link.type = link_type
                 link.bandwidth = float(link_info.get("bandwidth", 0))
                 link.latency = float(link_info.get("latency", 0))
@@ -354,16 +341,15 @@ class Cluster:
     def get_all_devices(self, device_type):
         devices = []
         for machine in self.machines.values():
-            for device in machine.devices.values():
-                if device.type == DeviceType[device_type]:
-                    devices.append(device)
+            devices.extend(
+                device
+                for device in machine.devices.values()
+                if device.type == DeviceType[device_type]
+            )
         return devices
 
     def __str__(self):
-        str = ""
-        for machine in self.machines.values():
-            str += "machine: {}\n".format(machine)
-        return str
+        return "".join(f"machine: {machine}\n" for machine in self.machines.values())
 
     def __repr__(self):
         return self.__str__()
